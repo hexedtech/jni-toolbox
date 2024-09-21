@@ -9,11 +9,11 @@ pub(crate) struct ReturnOptions {
 }
 
 impl ReturnOptions {
-	pub(crate) fn parse_signature(ret: ReturnType) -> Result<Self, syn::Error> {
+	pub(crate) fn parse_signature(ret: &ReturnType) -> Result<Self, syn::Error> {
 		match ret {
 			syn::ReturnType::Default => Ok(Self { ty: None, result: false }),
-			syn::ReturnType::Type(_tok, ty) => match *ty {
-				syn::Type::Path(ref path) => {
+			syn::ReturnType::Type(_tok, ty) => match *ty.clone() {
+				syn::Type::Path(path) => {
 					let Some(last) = path.path.segments.last() else {
 						return Err(syn::Error::new(Span::call_site(), "empty Result type is not valid"));
 					};
@@ -39,9 +39,9 @@ impl ReturnOptions {
 		}
 	}
 
-	pub(crate) fn tokens(self) -> TokenStream {
-		match self.ty {
-			Some(t) => ReturnType::Type(syn::Token![->](Span::call_site()), t).to_token_stream(),
+	pub(crate) fn tokens(&self) -> TokenStream {
+		match &self.ty { // TODO why do we need to invoke syn::Token! macro ???
+			Some(t) => ReturnType::Type(syn::Token![->](Span::call_site()), t.clone()).to_token_stream(),
 			None => ReturnType::Default.to_token_stream(),
 		}
 	}

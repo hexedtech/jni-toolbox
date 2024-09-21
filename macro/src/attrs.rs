@@ -5,8 +5,6 @@ pub(crate) struct AttrsOptions {
 	pub(crate) class: String,
 	pub(crate) exception: Option<String>,
 	pub(crate) return_pointer: bool,
-	pub(crate) without_env: bool,
-	pub(crate) without_class: bool,
 }
 
 impl AttrsOptions {
@@ -18,8 +16,6 @@ impl AttrsOptions {
 		let mut class = None;
 		let mut exception = None;
 		let mut return_pointer = false;
-		let mut without_env = false;
-		let mut without_class = false;
 	
 		for attr in attrs {
 			match what_next {
@@ -30,8 +26,6 @@ impl AttrsOptions {
 							"class" => what_next = WhatNext::Class,
 							"exception" => what_next = WhatNext::Exception,
 							"ptr" => return_pointer = true,
-							"no_env" => without_env = true,
-							"no_class" => without_class = true,
 							_ => return Err(syn::Error::new(Span::call_site(), "unexpected attribute on macro: {attr}")),
 						}
 					}
@@ -60,7 +54,7 @@ impl AttrsOptions {
 		let Some(package) = package else { return Err(syn::Error::new(Span::call_site(), "missing required attribute 'package'")) };
 		let Some(class) = class else { return Err(syn::Error::new(Span::call_site(), "missing required attribute 'class'")) };
 
-		Ok(Self { package, class, exception, return_pointer, without_class, without_env })
+		Ok(Self { package, class, exception, return_pointer })
 	}
 }
 

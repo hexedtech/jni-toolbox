@@ -2,7 +2,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::TokenStreamExt;
 use syn::Item;
 
-use crate::{args::parse_args, attrs::AttrsOptions, ret::ReturnOptions};
+use crate::{args::ArgumentOptions, attrs::AttrsOptions, ret::ReturnOptions};
 
 pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenStream, syn::Error> {
 	let mut out = TokenStream::new();
@@ -12,24 +12,25 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 	};
 
 	let attrs = AttrsOptions::parse_attr(attrs)?;
-	let ret = ReturnOptions::parse_signature(fn_item.sig.output.clone())?;
+	let args = ArgumentOptions::parse_args(&fn_item)?;
+	let ret = ReturnOptions::parse_signature(&fn_item.sig.output)?;
 
 
-	let return_type = ret.clone().tokens();
+	let return_type = ret.tokens();
 	let name = fn_item.sig.ident.to_string();
 	let name_jni = name.replace("_", "_1");
 	let fn_name_inner = syn::Ident::new(&name, Span::call_site());
 	let fn_name = syn::Ident::new(&format!("Java_{}_{}_{name_jni}", attrs.package, attrs.class), Span::call_site());
 
-	let (incoming, forwarding) = parse_args(fn_item)?;
 
+	let incoming = args.incoming;
+	// V----------------------------------V
 	let header = quote::quote! {
-
 		#[no_mangle]
 		#[allow(unused_mut)]
 		pub extern "system" fn #fn_name<'local>(#incoming) #return_type
-
 	};
+	// ^----------------------------------^
 
 	let return_expr = if attrs.return_pointer {
 		quote::quote!( std::ptr::null_mut() )
@@ -37,13 +38,11 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 		quote::quote!( 0 )
 	};
 
-	let Some(env_ident) = forwarding.clone().into_iter().next() else {
-		return Err(syn::Error::new(Span::call_site(), "missing JNIEnv argument"));
-	};
-
-
+	let env_ident = args.env;
+	let forwarding = args.forwarding;
 	let body = if ret.result { // wrap errors
 		if let Some(exception) = attrs.exception {
+			// V----------------------------------V
 			quote::quote! {
 				{
 					use jni_toolbox::JniToolboxError;
@@ -62,7 +61,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			quote::quote! {
 				{
 					use jni_toolbox::JniToolboxError;
-					// NOTE: this is SAFE! the cloned env reference lives less than the actual one, we just lack a
+					// NOTE: this should be SAFE! the cloned env reference lives less than the actual one, we just lack a
 					//       way to get it back from the called function and thus resort to unsafe cloning
 					let mut env_copy = unsafe { #env_ident.unsafe_clone() };
 					match #fn_name_inner(#forwarding) {
