@@ -13,7 +13,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 
 	let attrs = AttrsOptions::parse_attr(attrs)?;
 	let ret = ReturnOptions::parse_signature(&fn_item.sig.output)?;
-	let return_expr = if ret.ty.is_none() {
+	let return_expr = if ret.void {
 		quote::quote!( () )
 	} else if attrs.return_pointer {
 		quote::quote!( std::ptr::null_mut() )
@@ -49,7 +49,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			// V----------------------------------V
 			quote::quote! {
 				{
-					use jni_toolbox::{JniToolboxError, FromJava};
+					use jni_toolbox::{JniToolboxError, FromJava, IntoJava};
 					#transforming
 					match #fn_name_inner(#forwarding) {
 						Ok(ret) => ret,
@@ -65,7 +65,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			// V----------------------------------V
 			quote::quote! {
 				{
-					use jni_toolbox::{JniToolboxError, FromJava};
+					use jni_toolbox::{JniToolboxError, FromJava, IntoJava};
 					// NOTE: this should be SAFE! the cloned env reference lives less than the actual one, we just lack a
 					//       way to get it back from the called function and thus resort to unsafe cloning
 					let mut env_copy = unsafe { #env_ident.unsafe_clone() };
@@ -84,7 +84,14 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 								},
 							},
 						}
-						Ok(ret) => ret,
+						Ok(ret) => match ret.into_java(&mut env_copy) {
+							Ok(fin) => return fin,
+							Err(e) => {
+								// TODO should we panic instead?
+								let _ = env_copy.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+								return #return_expr;
+							}
+						},
 					}
 				}
 			}
@@ -93,9 +100,16 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 		// V----------------------------------V
 		quote::quote! {
 			{
-				use jni_toolbox::{JniToolboxError, FromJava};
+				use jni_toolbox::{JniToolboxError, FromJava, IntoJava};
 				#transforming
-				#fn_name_inner(#forwarding)
+				match #fn_name_inner(#forwarding).into_java(&mut #env_ident) {
+					Ok(res) => return res,
+					Err(e) => {
+						// TODO should we panic instead?
+						let _ = #env_ident.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+						return #return_expr;
+					},
+				}
 			}
 		}
 		// ^----------------------------------^
