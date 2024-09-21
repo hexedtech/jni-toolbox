@@ -1,5 +1,7 @@
 mod attrs;
 mod wrapper;
+mod args;
+mod ret;
 
 
 /// wrap this function in in a JNI exported fn

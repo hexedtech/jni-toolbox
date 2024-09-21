@@ -1,8 +1,8 @@
 use proc_macro2::{Span, TokenStream};
 use quote::TokenStreamExt;
-use syn::{FnArg, Item, ReturnType, Type};
+use syn::Item;
 
-use crate::attrs::AttrsOptions;
+use crate::{args::parse_args, attrs::AttrsOptions, ret::ReturnOptions};
 
 pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenStream, syn::Error> {
 	let mut out = TokenStream::new();
@@ -12,65 +12,23 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 	};
 
 	let attrs = AttrsOptions::parse_attr(attrs)?;
-
-	let (could_error, ret_type) = match fn_item.sig.output {
-		syn::ReturnType::Default => (false, fn_item.sig.output),
-		syn::ReturnType::Type(_tok, ty) => match *ty {
-			syn::Type::Path(ref path) => {
-				let Some(last) = path.path.segments.last() else {
-					return Err(syn::Error::new(Span::call_site(), "empty Result type is not valid"));
-				};
-
-				// TODO this is terrible, macro returns a function and we call it?? there must be a
-				// better way!!!
-				let mut out = (
-					false,
-					ReturnType::Type(syn::Token![->](Span::call_site()), Box::new(Type::Path(path.clone())))
-				);
-
-				if last.ident == "Result" {
-					match &last.arguments {
-						syn::PathArguments::None => return Err(syn::Error::new(Span::call_site(), "Result without generics is not valid")),
-						syn::PathArguments::Parenthesized(_) => return Err(syn::Error::new(Span::call_site(), "Parenthesized Result is not valid")),
-						syn::PathArguments::AngleBracketed(ref generics) => for generic in generics.args.iter() {
-							match generic {
-								syn::GenericArgument::Lifetime(_) => continue,
-								syn::GenericArgument::Type(ty) => {
-									out = (true, ReturnType::Type(syn::Token![->](Span::call_site()), Box::new(ty.clone())));
-									break;
-								},
-								_ => return Err(syn::Error::new(Span::call_site(), "unexpected type in Result")),
-							}
-						}
-					}
-				}
-
-				out
-			},
-			_ => return Err(syn::Error::new(Span::call_site(), "unsupported return type")),
-		},
-	};
+	let ret = ReturnOptions::parse_signature(fn_item.sig.output.clone())?;
 
 
-	let mut incoming = TokenStream::new();
-	let mut forwarding = TokenStream::new();
-
-	for arg in fn_item.sig.inputs {
-		let FnArg::Typed(ty) = arg else {
-			return Err(syn::Error::new(Span::call_site(), "#[jni] macro doesn't work on methods"));
-		};
-		incoming.append_all(quote::quote!( #ty , ));
-		let pat = unpack_pat(*ty.pat)?;
-		forwarding.append_all(pat);
-	}
-
+	let return_type = ret.clone().tokens();
 	let name = fn_item.sig.ident.to_string();
 	let name_jni = name.replace("_", "_1");
 	let fn_name_inner = syn::Ident::new(&name, Span::call_site());
 	let fn_name = syn::Ident::new(&format!("Java_{}_{}_{name_jni}", attrs.package, attrs.class), Span::call_site());
 
-	let Some(env_ident) = forwarding.clone().into_iter().next() else {
-		return Err(syn::Error::new(Span::call_site(), "missing JNIEnv argument"));
+	let (incoming, forwarding) = parse_args(fn_item)?;
+
+	let header = quote::quote! {
+
+		#[no_mangle]
+		#[allow(unused_mut)]
+		pub extern "system" fn #fn_name<'local>(#incoming) #return_type
+
 	};
 
 	let return_expr = if attrs.return_pointer {
@@ -79,13 +37,15 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 		quote::quote!( 0 )
 	};
 
-	let wrapped = if could_error {
+	let Some(env_ident) = forwarding.clone().into_iter().next() else {
+		return Err(syn::Error::new(Span::call_site(), "missing JNIEnv argument"));
+	};
+
+
+	let body = if ret.result { // wrap errors
 		if let Some(exception) = attrs.exception {
-			// V----------------------------------V
 			quote::quote! {
-				#[no_mangle]
-				#[allow(unused_mut)]
-				pub extern "system" fn #fn_name<'local>(#incoming) #ret_type {
+				{
 					use jni_toolbox::JniToolboxError;
 					match #fn_name_inner(#forwarding) {
 						Ok(ret) => ret,
@@ -100,9 +60,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 		} else {
 			// V----------------------------------V
 			quote::quote! {
-				#[no_mangle]
-				#[allow(unused_mut)]
-				pub extern "system" fn #fn_name<'local>(#incoming) #ret_type {
+				{
 					use jni_toolbox::JniToolboxError;
 					// NOTE: this is SAFE! the cloned env reference lives less than the actual one, we just lack a
 					//       way to get it back from the called function and thus resort to unsafe cloning
@@ -125,14 +83,11 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 					}
 				}
 			}
-			// ^----------------------------------^
 		}
 	} else {
 		// V----------------------------------V
 		quote::quote! {
-			#[no_mangle]
-			#[allow(unused_mut)]
-			pub extern "system" fn #fn_name<'local>(#incoming) #ret_type {
+			{
 				#fn_name_inner(#forwarding)
 			}
 		}
@@ -140,19 +95,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 	};
 
 	out.append_all(input);
-	out.append_all(wrapped);
+	out.append_all(header);
+	out.append_all(body);
 	Ok(out)
-}
-
-fn unpack_pat(pat: syn::Pat) -> Result<TokenStream, syn::Error> {
-	match pat {
-		syn::Pat::Ident(i) => {
-			let ident = i.ident;
-			Ok(quote::quote!( #ident ,))
-		},
-		syn::Pat::Reference(r) => {
-			unpack_pat(*r.pat)
-		},
-		_ => Err(syn::Error::new(Span::call_site(), "unsupported argument type")),
-	}
 }
