@@ -13,5 +13,5 @@ version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-jni-toolbox-macro = "0.1.1"
+jni-toolbox-macro = "0.1.2"
 jni = "0.21"
