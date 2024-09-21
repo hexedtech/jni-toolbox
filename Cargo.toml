@@ -1,6 +1,9 @@
+[workspace]
+members = ["macro"]
+
 [package]
-name = "jni-macro"
-description = "proc macro to automate making JNI extern functions"
+name = "jni-toolbox"
+description = "tools to make writing JNI native functions less tiresome"
 repository = "https://github.com/hexedtech/jni-macro"
 authors = [
 	"alemi <me@alemi.dev>"
@@ -9,10 +12,5 @@ license = "GPL-3.0-only"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-proc-macro = true
-
 [dependencies]
-syn = {version = "2.0", features = ["full"]}
-quote = "1.0"
-proc-macro2 = "1.0"
+jni-toolbox-macro = { path = "./macro" }

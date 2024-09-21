@@ -3,7 +3,14 @@
 version = 3
 
 [[package]]
-name = "jni-macro"
+name = "jni-toolbox"
+version = "0.1.0"
+dependencies = [
+ "jni-toolbox-macro",
+]
+
+[[package]]
+name = "jni-toolbox-macro"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
