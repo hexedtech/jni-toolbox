@@ -9,8 +9,8 @@ authors = [
 	"alemi <me@alemi.dev>"
 ]
 license = "GPL-3.0-only"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-jni-toolbox-macro = "0.1"
+jni-toolbox-macro = "0.1.1"
