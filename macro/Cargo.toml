@@ -11,7 +11,6 @@ edition = "2021"
 
 [lib]
 proc-macro = true
-path = "macro.rs"
 
 [dependencies]
 syn = {version = "2.0", features = ["full"]}
