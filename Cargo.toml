@@ -14,3 +14,4 @@ edition = "2021"
 
 [dependencies]
 jni-toolbox-macro = "0.1.1"
+jni = "0.21"

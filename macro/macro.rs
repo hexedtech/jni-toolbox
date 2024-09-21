@@ -30,6 +30,7 @@ fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenS
 	let mut package = None;
 	let mut clazz = None;
 	let mut exception = None;
+	let mut return_pointer = false;
 
 	for attr in attrs {
 		match what_next {
@@ -39,6 +40,7 @@ fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenS
 						"package" => what_next = WhatNext::Package,
 						"class" => what_next = WhatNext::Class,
 						"exception" => what_next = WhatNext::Exception,
+						"ptr" => return_pointer = true,
 						_ => return Err(syn::Error::new(Span::call_site(), "unexpected attribute on macro: {attr}")),
 					}
 				}
@@ -118,7 +120,7 @@ fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenS
 		};
 		incoming.append_all(quote::quote!( #ty , ));
 		let pat = unpack_pat(*ty.pat)?;
-		forwarding.append_all(quote::quote!( #pat , ));
+		forwarding.append_all(pat);
 	}
 
 	let name = fn_item.sig.ident.to_string();
@@ -130,17 +132,24 @@ fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenS
 		return Err(syn::Error::new(Span::call_site(), "missing JNIEnv argument"));
 	};
 
+	let return_expr = if return_pointer {
+		quote::quote!( std::ptr::null_mut() )
+	} else {
+		quote::quote!( 0 )
+	};
+
 	let wrapped = if could_error {
 		if let Some(exception) = exception {
 			// V----------------------------------V
 			quote::quote! {
 				#[no_mangle]
+				#[allow(unused_mut)]
 				pub extern "system" fn #fn_name<'local>(#incoming) #ret_type {
 					use jni_toolbox::JniToolboxError;
 					match #fn_name_inner(#forwarding) {
 						Ok(ret) => ret,
 						Err(e) => match #env_ident.throw_new(#exception, format!("{e:?}")) {
-							Ok(_) => return 0,
+							Ok(_) => return #return_expr,
 							Err(e) => panic!("error throwing java exception: {e}"),
 						}
 					}
@@ -151,18 +160,22 @@ fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenS
 			// V----------------------------------V
 			quote::quote! {
 				#[no_mangle]
+				#[allow(unused_mut)]
 				pub extern "system" fn #fn_name<'local>(#incoming) #ret_type {
 					use jni_toolbox::JniToolboxError;
+					// NOTE: this is SAFE! the cloned env reference lives less than the actual one, we just lack a
+					//       way to get it back from the called function and thus resort to unsafe cloning
+					let mut env_copy = unsafe { #env_ident.unsafe_clone() };
 					match #fn_name_inner(#forwarding) {
-						Err(e) => match #env_ident.find_class(e.jclass()) {
+						Err(e) => match env_copy.find_class(e.jclass()) {
 							Err(e) => panic!("error throwing Java exception -- failed resolving error class: {e}"),
-							Ok(class) => match #env_ident.new_string(format!("{e:?}")) {
+							Ok(class) => match env_copy.new_string(format!("{e:?}")) {
 								Err(e) => panic!("error throwing Java exception --  failed creating error string: {e}"),
-								Ok(msg) => match #env_ident.new_object(class, "(Ljava/lang/String;)V", &[jni::objects::JValueGen::Object(&msg)]) {
+								Ok(msg) => match env_copy.new_object(class, "(Ljava/lang/String;)V", &[jni::objects::JValueGen::Object(&msg)]) {
 									Err(e) => panic!("error throwing Java exception -- failed creating object: {e}"),
-									Ok(obj) => match #env_ident.throw(obj) {
+									Ok(obj) => match env_copy.throw(jni::objects::JThrowable::from(obj)) {
 										Err(e) => panic!("error throwing Java exception -- failed throwing: {e}"),
-										Ok(_) => return 0,
+										Ok(_) => return #return_expr,
 									},
 								},
 							},
@@ -177,6 +190,7 @@ fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenS
 		// V----------------------------------V
 		quote::quote! {
 			#[no_mangle]
+			#[allow(unused_mut)]
 			pub extern "system" fn #fn_name<'local>(#incoming) #ret_type {
 				#fn_name_inner(#forwarding)
 			}
