@@ -4,6 +4,7 @@ use syn::Ident;
 
 pub(crate) struct ArgumentOptions {
 	pub(crate) incoming: TokenStream,
+	pub(crate) transforming: TokenStream,
 	pub(crate) forwarding: TokenStream,
 	pub(crate) env: Ident,
 }
@@ -47,7 +48,7 @@ fn type_equals(ty: Box<syn::Type>, search: impl AsRef<str>) -> bool {
 }
 
 impl ArgumentOptions {
-	pub(crate) fn parse_args(fn_item: &syn::ItemFn) -> Result<Self, syn::Error> {
+	pub(crate) fn parse_args(fn_item: &syn::ItemFn, ret_expr: TokenStream) -> Result<Self, syn::Error> {
 		let mut arguments = Vec::new();
 		let mut pass_env = false;
 		let mut pass_class = false;
@@ -62,29 +63,10 @@ impl ArgumentOptions {
 				pat: syn::Ident::new(&pat.to_string(), Span::call_site()),
 				ty: ty.ty.clone(),
 			});
-			// if env.is_none() {
-			// 	if type_equals(ty.ty.clone(), "JNIEnv") {
-			// 		env = Some(syn::Ident::new(&pat.to_string(), Span::call_site()));
-			// 	} else {
-			// 		let envv = ;
-			// 		incoming.append_all(quote::quote!( #envv: jni::JNIEnv<'local>,));
-			// 		env = Some(envv);
-			// 	}
-			// }
-			// if class.is_none() && !type_equals(ty.ty.clone(), "JNIEnv") {
-			// 	if type_equals(ty.ty.clone(), "JClass") {
-			// 		class = Some(syn::Ident::new(&pat.to_string(), Span::call_site()));
-			// 	} else {
-			// 		let classs = syn::Ident::new("class", Span::call_site());
-			// 		incoming.append_all(quote::quote!( #classs: jni::objects::JClass<'local>,));
-			// 		class = Some(classs);
-			// 	}
-			// }
-			// incoming.append_all(quote::quote!( #ty , ));
-			// forwarding.append_all(quote::quote! ( #pat, ));
 		}
 
 		let mut incoming = TokenStream::new();
+		let mut transforming = TokenStream::new();
 		let mut forwarding = TokenStream::new();
 
 		let env = if pass_env {
@@ -115,12 +97,23 @@ impl ArgumentOptions {
 
 		for arg in args_iter {
 			let pat = arg.pat;
+			let new_pat = syn::Ident::new(&format!("{pat}_new"), Span::call_site());
 			let ty = arg.ty;
-			incoming.append_all(quote::quote!( mut #pat: #ty,));
-			forwarding.append_all(quote::quote!( #pat,));
+			transforming.append_all(quote::quote!{
+				let #new_pat = match jni_toolbox::from_java_static::<#ty>(&mut #env, #pat) {
+					Ok(x) => x,
+					Err(e) => {
+						// TODO should we panic here instead?
+						let _ = #env.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+						return #ret_expr;
+					},
+				};
+			});
+			incoming.append_all(quote::quote!( mut #pat: <#ty as jni_toolbox::FromJava<'local>>::T,));
+			forwarding.append_all(quote::quote!( #new_pat,));
 		}
 
-		Ok(Self { incoming, forwarding, env })
+		Ok(Self { incoming, transforming, forwarding, env })
 	}
 }
 

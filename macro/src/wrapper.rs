@@ -12,8 +12,17 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 	};
 
 	let attrs = AttrsOptions::parse_attr(attrs)?;
-	let args = ArgumentOptions::parse_args(&fn_item)?;
 	let ret = ReturnOptions::parse_signature(&fn_item.sig.output)?;
+	let return_expr = if ret.ty.is_none() {
+		quote::quote!( () )
+	} else if attrs.return_pointer {
+		quote::quote!( std::ptr::null_mut() )
+	} else {
+		quote::quote!( 0 )
+	};
+
+	// TODO a bit ugly passing the return expr down... we should probably manage returns here
+	let args = ArgumentOptions::parse_args(&fn_item, return_expr.clone())?;
 
 
 	let return_type = ret.tokens();
@@ -32,20 +41,16 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 	};
 	// ^----------------------------------^
 
-	let return_expr = if attrs.return_pointer {
-		quote::quote!( std::ptr::null_mut() )
-	} else {
-		quote::quote!( 0 )
-	};
-
 	let env_ident = args.env;
 	let forwarding = args.forwarding;
+	let transforming = args.transforming;
 	let body = if ret.result { // wrap errors
 		if let Some(exception) = attrs.exception {
 			// V----------------------------------V
 			quote::quote! {
 				{
-					use jni_toolbox::JniToolboxError;
+					use jni_toolbox::{JniToolboxError, FromJava};
+					#transforming
 					match #fn_name_inner(#forwarding) {
 						Ok(ret) => ret,
 						Err(e) => match #env_ident.throw_new(#exception, format!("{e:?}")) {
@@ -60,10 +65,11 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			// V----------------------------------V
 			quote::quote! {
 				{
-					use jni_toolbox::JniToolboxError;
+					use jni_toolbox::{JniToolboxError, FromJava};
 					// NOTE: this should be SAFE! the cloned env reference lives less than the actual one, we just lack a
 					//       way to get it back from the called function and thus resort to unsafe cloning
 					let mut env_copy = unsafe { #env_ident.unsafe_clone() };
+					#transforming
 					match #fn_name_inner(#forwarding) {
 						Err(e) => match env_copy.find_class(e.jclass()) {
 							Err(e) => panic!("error throwing Java exception -- failed resolving error class: {e}"),
@@ -87,6 +93,8 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 		// V----------------------------------V
 		quote::quote! {
 			{
+				use jni_toolbox::{JniToolboxError, FromJava};
+				#transforming
 				#fn_name_inner(#forwarding)
 			}
 		}
