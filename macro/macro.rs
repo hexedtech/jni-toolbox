@@ -60,7 +60,7 @@ fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenS
 			WhatNext::Exception => {
 				if let TokenTree::Literal(i) = attr {
 					let raw = i.to_string().replace('"', "").replace(".", "_");
-					exception = Some(i);
+					exception = Some(raw);
 					what_next = WhatNext::Nothing;
 				}
 			}
