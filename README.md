@@ -1,13 +1,19 @@
-# jni-macro
-this is a simple procedural macro crate to automatically generate JNI-compatible extern functions
+# jni-toolbox
+this is a simple crate built around [jni-rs](https://github.com/jni-rs/jni-rs) to automatically generate JNI-compatible extern functions
 
 it also wraps functions returning `Result<>`, making short-circuiting easy
 
 ## usage
-just annotate your functions with
+you must implement `JniToolboxError` trait for your errors, so that they can be converted to Java errors
+
+you will need to define classes for them, and implement `JniToolboxError` returning the class path
+
+alternatively, an `exception` class can be specified with the `exception` attribute
+
+then just annotate your functions with
 
 ```rust
-#[jni_macro::jni(package = "your.package.path", class = "ContainerClass")]
+#[jni_toolbox::jni(package = "your.package.path", class = "ContainerClass")]
 fn your_function_name(arg: i32) -> Result<(), String> {
 	// your code here
 }
@@ -20,7 +26,7 @@ note that input/output arguments must be natively FFI safe: there will be no hid
 ## examples
 the following function:
 ```rust
-#[jni_macro::jni(package = "mp.code", class = "Client")]
+#[jni_toolbox::jni(package = "mp.code", class = "Client")]
 fn connect(env: JNIEnv, cacca: JString) -> Result<(), ConnectionError> {
   let config = codemp::api::Config::new("asd".into(), "dsa".into());
   tokio().block_on(codemp::Client::connect(config))?;
