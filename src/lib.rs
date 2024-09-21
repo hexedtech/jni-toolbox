@@ -1,4 +1,4 @@
-use jni::objects::JString;
+use jni::objects::JObject;
 pub use jni_toolbox_macro::jni;
 
 pub trait JniToolboxError: std::error::Error {
@@ -27,8 +27,24 @@ pub trait FromJava<'j> : Sized {
 	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error>;
 }
 
+macro_rules! auto_from_java {
+	($t:ty, $j:ty) => {
+		impl<'j> FromJava<'j> for $t {
+			type T = $j;
+		
+			#[inline]
+			fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
+				Ok(value)
+			}
+		}
+	};
+}
 
-
+auto_from_java!(i64, jni::sys::jlong);
+auto_from_java!(i32, jni::sys::jint);
+auto_from_java!(i16, jni::sys::jshort);
+auto_from_java!(f32, jni::sys::jfloat);
+auto_from_java!(f64, jni::sys::jdouble);
 
 impl<'j> FromJava<'j> for bool {
 	type T = jni::sys::jboolean;
@@ -36,51 +52,6 @@ impl<'j> FromJava<'j> for bool {
 	#[inline]
 	fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
 		Ok(value == 1)
-	}
-}
-
-impl<'j> FromJava<'j> for i64 {
-	type T = jni::sys::jlong;
-
-	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
-		Ok(value)
-	}
-}
-
-impl<'j> FromJava<'j> for i32 {
-	type T = jni::sys::jint;
-
-	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
-		Ok(value)
-	}
-}
-
-impl<'j> FromJava<'j> for i16 {
-	type T = jni::sys::jshort;
-
-	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
-		Ok(value)
-	}
-}
-
-impl<'j> FromJava<'j> for f32 {
-	type T = jni::sys::jfloat;
-
-	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
-	  Ok(value)
-	}
-}
-
-impl<'j> FromJava<'j> for f64 {
-	type T = jni::sys::jdouble;
-
-	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
-		Ok(value)
 	}
 }
 
@@ -93,22 +64,14 @@ impl<'j> FromJava<'j> for String {
 	}
 }
 
-impl<'j> FromJava<'j> for Option<String> {
-	type T = jni::objects::JString<'j>;
+impl<'j, T: FromJava<'j, T = jni::objects::JObject<'j>>> FromJava<'j> for Option<T> {
+	type T = jni::objects::JObject<'j>;
 
 	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error> {
 		if value.is_null() { return Ok(None) };
-		Ok(Some(String::from_java(env, value)?))
+		Ok(Some(T::from_java(env, value)?))
 	}
 }
-
-
-
-
-
-
-
-
 
 
 
@@ -119,10 +82,62 @@ pub trait IntoJava<'j> {
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
 }
 
+macro_rules! auto_into_java {
+	($t:ty, $j:ty) => {
+		impl<'j> IntoJava<'j> for $t {
+			type T = $j;
+		
+			fn into_java(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+				Ok(self)
+			}
+		}
+	};
+}
+
+auto_into_java!(i64, jni::sys::jlong);
+auto_into_java!(i32, jni::sys::jint);
+auto_into_java!(i16, jni::sys::jshort);
+auto_into_java!(f32, jni::sys::jfloat);
+auto_into_java!(f64, jni::sys::jdouble);
+auto_into_java!((), ());
+
+impl<'j> IntoJava<'j> for bool {
+	type T = jni::sys::jboolean;
+
+	#[inline]
+	fn into_java(self, _: &mut jni::JNIEnv) -> Result<Self::T, jni::errors::Error> {
+		Ok(if self { 1 } else { 0 })
+	}
+}
+
 impl<'j> IntoJava<'j> for String {
-	type T = JString<'j>;
+	type T = jni::sys::jstring;
 
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		env.new_string(self)
+		Ok(env.new_string(self)?.as_raw())
 	}
+}
+
+impl<'j> IntoJava<'j> for Vec<String> {
+	type T = jni::sys::jobjectArray;
+
+	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+		let mut array = env.new_object_array(self.len() as i32, "java/lang/String", JObject::null())?;
+		for (n, el) in self.into_iter().enumerate() {
+			let string = env.new_string(el)?;
+			env.set_object_array_element(&mut array, n as i32, string)?;
+		}
+		Ok(array.into_raw())
+	}
+}
+
+impl<'j, T: IntoJava<'j, T = jni::sys::jobject>> IntoJava<'j> for Option<T> {
+	type T = T::T;
+	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+		match self {
+			Some(x) => x.into_java(env),
+			None => Ok(std::ptr::null_mut()),
+		}
+	}
+
 }
