@@ -4,14 +4,14 @@ members = ["macro"]
 [package]
 name = "jni-toolbox"
 description = "tools to make writing JNI native functions less tiresome"
-repository = "https://github.com/hexedtech/jni-macro"
+repository = "https://github.com/hexedtech/jni-toolbox"
 authors = [
 	"alemi <me@alemi.dev>"
 ]
 license = "GPL-3.0-only"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 
 [dependencies]
-jni-toolbox-macro = "0.1.2"
+jni-toolbox-macro = "0.1.3"
 jni = "0.21"
