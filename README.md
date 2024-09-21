@@ -15,10 +15,12 @@ fn your_function_name(arg: i32) -> Result<(), String> {
 
 by specifying package and class, this crate will write an appropriate wrapper with the right function name. If inner function returns a `Result<>`, wrapper will also handle it. (currently just panics, soon will throw exceptions!)
 
+note that input/output arguments must be natively FFI safe: there will be no hidden translations! you will have to un-marshal strings yourself
+
 ## examples
 the following function:
 ```rust
-#[java_easy_jni::jni(package = "mp.code", class = "Client")]
+#[jni_macro::jni(package = "mp.code", class = "Client")]
 fn connect(env: JNIEnv, cacca: JString) -> Result<(), ConnectionError> {
   let config = codemp::api::Config::new("asd".into(), "dsa".into());
   tokio().block_on(codemp::Client::connect(config))?;
