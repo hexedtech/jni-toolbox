@@ -9,7 +9,7 @@ just specify package and class on your function, and done!
 ```rust
 #[jni_toolbox::jni(package = "your.package.path", class = "ContainerClass")]
 fn your_function_name(arg: String) -> Result<Vec<String>, String> {
-	Ok(arg.split('/').map(|x| x.to_string()).collect())
+  Ok(arg.split('/').map(|x| x.to_string()).collect())
 }
 ```
 
@@ -32,7 +32,7 @@ the following function:
 ```rust
 #[jni(package = "mp.code", class = "Client", ptr)]
 fn connect(config: Config) -> Result<Client, ConnectionError> {
-	tokio().block_on(Client::connect(config))
+  tokio().block_on(Client::connect(config))
 }
 ```
 
@@ -42,82 +42,82 @@ gets turned into these two functions:
 
 ```rust
 fn connect(config: Config) -> Result<Client, ConnectionError> {
-	tokio().block_on(Client::connect(config))
+  tokio().block_on(Client::connect(config))
 }
 
 #[no_mangle]
 #[allow(unused_mut)]
 pub extern "system" fn Java_mp_code_Client_connect<'local>(
-	mut env: jni::JNIEnv<'local>,
-	_class: jni::objects::JClass<'local>,
-	mut config: <Config as jni_toolbox::FromJava<'local>>::T,
+  mut env: jni::JNIEnv<'local>,
+  _class: jni::objects::JClass<'local>,
+  mut config: <Config as jni_toolbox::FromJava<'local>>::T,
 ) -> <Client as jni_toolbox::IntoJava<'local>>::T {
-	use jni_toolbox::{FromJava, IntoJava, JniToolboxError};
-	let mut env_copy = unsafe { env.unsafe_clone() };
-	let config_new = match jni_toolbox::from_java_static::<Config>(&mut env, config) {
-		Ok(x) => x,
-		Err(e) => {
-			let _ = env.throw_new(
-				"java/lang/RuntimeException",
-				$crate::__export::must_use({
-					let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
-					res
-				}),
-			);
-			return std::ptr::null_mut();
-		}
-	};
-	match connect(config_new) {
-		Err(e) => match env_copy.find_class(e.jclass()) {
-			Err(e) => {
-				$crate::panicking::panic_fmt($crate::const_format_args!(
-					"error throwing Java exception -- failed resolving error class: {e}"
-				));
-			}
-			Ok(class) => match env_copy.new_string($crate::__export::must_use({
-				let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
-				res
-			})) {
-				Err(e) => {
-					$crate::panicking::panic_fmt($crate::const_format_args!(
-						"error throwing Java exception --  failed creating error string: {e}"
-					));
-				}
-				Ok(msg) => match env_copy.new_object(
-					class,
-					"(Ljava/lang/String;)V",
-					&[jni::objects::JValueGen::Object(&msg)],
-				) {
-					Err(e) => {
-						$crate::panicking::panic_fmt($crate::const_format_args!(
-							"error throwing Java exception -- failed creating object: {e}"
-						));
-					}
-					Ok(obj) => match env_copy.throw(jni::objects::JThrowable::from(obj)) {
-						Err(e) => {
-							$crate::panicking::panic_fmt($crate::const_format_args!(
-								"error throwing Java exception -- failed throwing: {e}"
-							));
-						}
-						Ok(_) => return std::ptr::null_mut(),
-					},
-				},
-			},
-		},
-		Ok(ret) => match ret.into_java(&mut env_copy) {
-			Ok(fin) => return fin,
-			Err(e) => {
-				let _ = env_copy.throw_new(
-					"java/lang/RuntimeException",
-					$crate::__export::must_use({
-						let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
-						res
-					}),
-				);
-				return std::ptr::null_mut();
-			}
-		},
-	}
+  use jni_toolbox::{FromJava, IntoJava, JniToolboxError};
+  let mut env_copy = unsafe { env.unsafe_clone() };
+  let config_new = match jni_toolbox::from_java_static::<Config>(&mut env, config) {
+    Ok(x) => x,
+    Err(e) => {
+      let _ = env.throw_new(
+        "java/lang/RuntimeException",
+        $crate::__export::must_use({
+          let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
+          res
+        }),
+      );
+      return std::ptr::null_mut();
+    }
+  };
+  match connect(config_new) {
+    Err(e) => match env_copy.find_class(e.jclass()) {
+      Err(e) => {
+        $crate::panicking::panic_fmt($crate::const_format_args!(
+          "error throwing Java exception -- failed resolving error class: {e}"
+        ));
+      }
+      Ok(class) => match env_copy.new_string($crate::__export::must_use({
+        let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
+        res
+      })) {
+        Err(e) => {
+          $crate::panicking::panic_fmt($crate::const_format_args!(
+            "error throwing Java exception --  failed creating error string: {e}"
+          ));
+        }
+        Ok(msg) => match env_copy.new_object(
+          class,
+          "(Ljava/lang/String;)V",
+          &[jni::objects::JValueGen::Object(&msg)],
+        ) {
+          Err(e) => {
+            $crate::panicking::panic_fmt($crate::const_format_args!(
+              "error throwing Java exception -- failed creating object: {e}"
+            ));
+          }
+          Ok(obj) => match env_copy.throw(jni::objects::JThrowable::from(obj)) {
+            Err(e) => {
+              $crate::panicking::panic_fmt($crate::const_format_args!(
+                "error throwing Java exception -- failed throwing: {e}"
+              ));
+            }
+            Ok(_) => return std::ptr::null_mut(),
+          },
+        },
+      },
+    },
+    Ok(ret) => match ret.into_java(&mut env_copy) {
+      Ok(fin) => return fin,
+      Err(e) => {
+        let _ = env_copy.throw_new(
+          "java/lang/RuntimeException",
+          $crate::__export::must_use({
+            let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
+            res
+          }),
+        );
+        return std::ptr::null_mut();
+      }
+    },
+  }
 }
 ```
 
