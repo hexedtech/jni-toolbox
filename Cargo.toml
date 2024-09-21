@@ -13,4 +13,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jni-toolbox-macro = { path = "./macro" }
+jni-toolbox-macro = "0.1"
