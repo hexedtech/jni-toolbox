@@ -9,3 +9,9 @@ impl JniToolboxError for jni::errors::Error {
 		"java/lang/RuntimeException".to_string()
 	}
 }
+
+impl JniToolboxError for jni::errors::JniError {
+	fn jclass(&self) -> String {
+		"java/lang/RuntimeException".to_string()
+	}
+}
