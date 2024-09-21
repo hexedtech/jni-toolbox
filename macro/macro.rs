@@ -117,7 +117,7 @@ fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenS
 			return Err(syn::Error::new(Span::call_site(), "#[jni] macro doesn't work on methods"));
 		};
 		incoming.append_all(quote::quote!( #ty , ));
-		let pat = ty.pat;
+		let pat = unpack_pat(*ty.pat)?;
 		forwarding.append_all(quote::quote!( #pat , ));
 	}
 
@@ -194,4 +194,17 @@ enum WhatNext {
 	Package,
 	Class,
 	Exception,
+}
+
+fn unpack_pat(pat: syn::Pat) -> Result<TokenStream, syn::Error> {
+	match pat {
+		syn::Pat::Ident(i) => {
+			let ident = i.ident;
+			Ok(quote::quote!( #ident ,))
+		},
+		syn::Pat::Reference(r) => {
+			unpack_pat(*r.pat)
+		},
+		_ => Err(syn::Error::new(Span::call_site(), "unsupported argument type")),
+	}
 }
