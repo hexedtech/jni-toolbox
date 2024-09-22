@@ -1,4 +1,4 @@
-use jni::{objects::{JObject, JObjectArray, JString}, sys::{jboolean, jobject}};
+use jni::{objects::{JObject, JObjectArray, JString}, sys::jobject};
 pub use jni_toolbox_macro::jni;
 
 pub trait JniToolboxError: std::error::Error {
@@ -61,7 +61,7 @@ impl<'j> FromJava<'j> for String {
 
 	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error> {
 		if value.is_null() { return Err(jni::errors::Error::NullPtr("string can't be null")) };
-		Ok(env.get_string(&value)?.into())
+		Ok(unsafe { env.get_string_unchecked(&value) }?.into()) // unsafe for efficiency
 	}
 }
 
