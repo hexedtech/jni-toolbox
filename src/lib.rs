@@ -1,5 +1,5 @@
 pub use jni_toolbox_macro::jni;
-use jni::objects::{JObject, JString, JObjectArray};
+use jni::objects::{JObject, JObjectArray, JString};
 
 pub trait JniToolboxError: std::error::Error {
 	fn jclass(&self) -> String;
@@ -42,8 +42,10 @@ macro_rules! auto_from_java {
 auto_from_java!(i64, jni::sys::jlong);
 auto_from_java!(i32, jni::sys::jint);
 auto_from_java!(i16, jni::sys::jshort);
+auto_from_java!(i8, jni::sys::jbyte);
 auto_from_java!(f32, jni::sys::jfloat);
 auto_from_java!(f64, jni::sys::jdouble);
+auto_from_java!(JObject<'j>, JObject<'j>);
 
 impl<'j> FromJava<'j> for bool {
 	type T = jni::sys::jboolean;
@@ -63,11 +65,11 @@ impl<'j> FromJava<'j> for String {
 	}
 }
 
-impl<'j, T: FromJava<'j, T = JObject<'j>>> FromJava<'j> for Option<T> {
-	type T = JObject<'j>;
+impl<'j, T: FromJava<'j, T: std::convert::AsRef<JObject<'j>>>> FromJava<'j> for Option<T> {
+	type T = T::T;
 
 	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error> {
-		if value.is_null() { return Ok(None) };
+		if value.as_ref().is_null() { return Ok(None) };
 		Ok(Some(T::from_java(env, value)?))
 	}
 }
@@ -92,30 +94,9 @@ impl<'j> FromJava<'j> for uuid::Uuid {
 	}
 }
 
-trait JavaType {}
-
-/// Intermediate trait used to guess the JNI return type.
-/// Usually doesn't need to be manually implemented.
-pub trait IntoJavaRaw<'j, T> {
-	fn into_java_raw(self, env: &mut jni::JNIEnv<'j>) -> Result<T, jni::errors::Error>;
-}
-
-impl <'j, E, T: IntoJavaPrimitive<'j, T = E>> IntoJavaRaw<'j, E> for T {
-	fn into_java_raw(self, env: &mut jni::JNIEnv<'j>) -> Result<E, jni::errors::Error> {
-		self.into_java_primitive(env)
-	}
-}
-
-impl<'j, T: IntoJavaObject<'j>> IntoJavaRaw<'j, jni::sys::jobject> for T {
-	fn into_java_raw(self, env: &mut jni::JNIEnv<'j>) -> Result<jni::sys::jobject, jni::errors::Error> {
-		self.into_java(env)
-			.map(|j| j.as_ref().as_raw())
-	}
-}
-
 pub trait IntoJavaPrimitive<'j> {
 	type T;
-	fn into_java_primitive(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
+	fn into_java(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
 }
 
 macro_rules! auto_into_java {
@@ -123,16 +104,19 @@ macro_rules! auto_into_java {
 		impl<'j> IntoJavaPrimitive<'j> for $t {
 			type T = $j;
 		
-			fn into_java_primitive(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+			fn into_java(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
 				Ok(self)
 			}
 		}
 	};
 }
 
+// TODO: primitive arrays!
+
 auto_into_java!(i64, jni::sys::jlong);
 auto_into_java!(i32, jni::sys::jint);
 auto_into_java!(i16, jni::sys::jshort);
+auto_into_java!(i8, jni::sys::jbyte);
 auto_into_java!(f32, jni::sys::jfloat);
 auto_into_java!(f64, jni::sys::jdouble);
 auto_into_java!((), ());
@@ -141,7 +125,7 @@ impl<'j> IntoJavaPrimitive<'j> for bool {
 	type T = jni::sys::jboolean;
 
 	#[inline]
-	fn into_java_primitive(self, _: &mut jni::JNIEnv) -> Result<Self::T, jni::errors::Error> {
+	fn into_java(self, _: &mut jni::JNIEnv) -> Result<Self::T, jni::errors::Error> {
 		Ok(if self { 1 } else { 0 })
 	}
 }
@@ -171,7 +155,6 @@ impl<'j> IntoJavaObject<'j> for String {
 impl<'j, E: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<E> {
 	type T = JObjectArray<'j>;
 	const CLASS: &'static str = E::CLASS;
-
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
 		let mut array = env.new_object_array(self.len() as i32, E::CLASS, JObject::null())?;
 		for (n, el) in self.into_iter().enumerate() {
@@ -182,13 +165,13 @@ impl<'j, E: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<E> {
 	}
 }
 
-impl<'j, E: std::convert::AsRef<JObject<'j>> + JavaFromRaw, T: IntoJavaObject<'j, T = E>> IntoJavaObject<'j> for Option<T> {
+impl<'j, E: std::convert::AsRef<JObject<'j>> + FromJavaRaw, T: IntoJavaObject<'j, T = E>> IntoJavaObject<'j> for Option<T> {
 	type T = E;
 	const CLASS: &'static str = T::CLASS;
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
 		match self {
 			Some(x) => x.into_java(env),
-			None => Ok(unsafe { E::from_raw(std::ptr::null_mut()) }) // safe, that's what JObject::null does
+			None => Ok(unsafe { E::from_java_raw(std::ptr::null_mut()) }) // safe, that's what JObject::null does
 		}
 	}
 }
@@ -207,15 +190,15 @@ impl<'j> IntoJavaObject<'j> for uuid::Uuid {
 }
 
 /// Needed internally to perform some operations.
-trait JavaFromRaw {
-	unsafe fn from_raw(raw: jni::sys::jobject) -> Self;
+trait FromJavaRaw {
+	unsafe fn from_java_raw(raw: jni::sys::jobject) -> Self;
 }
 
 macro_rules! auto_from_raw {
 	($type: ty) => {
-		impl JavaFromRaw for $type {
+		impl FromJavaRaw for $type {
 			#[inline]
-			unsafe fn from_raw(raw: jni::sys::jobject) -> Self {
+			unsafe fn from_java_raw(raw: jni::sys::jobject) -> Self {
 				Self::from_raw(raw)
 			}
 		}
@@ -225,3 +208,45 @@ macro_rules! auto_from_raw {
 auto_from_raw!(JObject<'_>);
 auto_from_raw!(JString<'_>);
 auto_from_raw!(JObjectArray<'_>);
+
+/// Intermediate trait used to guess the JNI return type.
+/// Usually doesn't need to be manually implemented.
+pub trait IntoJavaRaw {
+	type T;
+	fn into_java_raw(self) -> Self::T;
+}
+
+macro_rules! auto_into_raw_primitive {
+	($type: ty) => {
+		impl IntoJavaRaw for $type {
+			type T = $type;
+			fn into_java_raw(self) -> Self::T {
+				self
+			}
+		}
+	}
+}
+
+auto_into_raw_primitive!(jni::sys::jlong);
+auto_into_raw_primitive!(jni::sys::jint);
+auto_into_raw_primitive!(jni::sys::jshort);
+auto_into_raw_primitive!(jni::sys::jbyte);
+auto_into_raw_primitive!(jni::sys::jdouble);
+auto_into_raw_primitive!(jni::sys::jfloat);
+auto_into_raw_primitive!(jni::sys::jboolean);
+auto_into_raw_primitive!(());
+
+macro_rules! auto_into_raw_object {
+	($lt: lifetime, $type: ty) => {
+		impl<'j> IntoJavaRaw for $type {
+			type T = jni::sys::jobject;
+			fn into_java_raw(self) -> Self::T {
+				self.as_raw()
+			}
+		}
+	};
+}
+
+auto_into_raw_object!('j, JObject<'j>);
+auto_into_raw_object!('j, JString<'j>);
+auto_into_raw_object!('j, JObjectArray<'j>);

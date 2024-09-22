@@ -42,8 +42,14 @@ impl ReturnOptions {
 
 	pub(crate) fn tokens(&self) -> TokenStream {
 		match &self.ty { // TODO why do we need to invoke syn::Token! macro ???
-			Some(t) => quote::quote!( -> <#t as jni_toolbox::IntoJava<'local>>::T ),
 			None => ReturnType::Default.to_token_stream(),
+			Some(t) => {
+				if t.to_token_stream().to_string() == "bool" {// TODO: there DEFINITELY is a better way 
+					quote::quote!( -> jni::sys::jboolean )
+				} else {
+					quote::quote!( -> <#t as jni_toolbox::IntoJavaRaw>::T )
+				}
+			}
 		}
 	}
 }
