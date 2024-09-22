@@ -72,6 +72,26 @@ impl<'j, T: FromJava<'j, T = jni::objects::JObject<'j>>> FromJava<'j> for Option
 	}
 }
 
+#[cfg(feature = "uuid")]
+impl<'j> FromJava<'j> for uuid::Uuid {
+	type T = jni::objects::JObject<'j>;
+	fn from_java(env: &mut jni::JNIEnv<'j>, uuid: Self::T) -> Result<Self, jni::errors::Error> {
+		let lsb = u64::from_ne_bytes(
+			env.call_method(&uuid, "getLeastSignificantBits", "()J", &[])?
+				.j()?
+				.to_ne_bytes()
+		);
+
+		let msb = u64::from_ne_bytes(
+			env.call_method(&uuid, "getMostSignificantBits", "()J", &[])?
+				.j()?
+				.to_ne_bytes()
+		);
+		
+		Ok(uuid::Uuid::from_u64_pair(msb, lsb))
+	}
+}
+
 pub trait IntoJava<'j> {
 	type T;
 
@@ -140,5 +160,18 @@ impl<'j, T: IntoJava<'j, T = jni::sys::jobject>> IntoJava<'j> for Option<T> {
 			Some(x) => x.into_java(env),
 			None => Ok(std::ptr::null_mut()),
 		}
+	}
+}
+
+#[cfg(feature = "uuid")]
+impl<'j> IntoJava<'j> for uuid::Uuid {
+	type T = jni::sys::jobject;
+	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+		let class = env.find_class("java/util/UUID")?;
+		let (msb, lsb) = self.as_u64_pair();
+		let msb = i64::from_ne_bytes(msb.to_ne_bytes());
+		let lsb = i64::from_ne_bytes(lsb.to_ne_bytes());
+		env.new_object(&class, "(JJ)V", &[jni::objects::JValueGen::Long(msb), jni::objects::JValueGen::Long(lsb)])
+			.map(|j| j.as_raw())
 	}
 }
