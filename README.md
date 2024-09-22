@@ -13,21 +13,53 @@ fn your_function_name(arg: String) -> Result<Vec<String>, String> {
 }
 ```
 
+### conversions
 every type that must go into/from Java must implement `IntoJava` or `FromJava` (methods will receive a `&mut JNIEnv` and can return errors).
 most primitives already have them implemented. conversions are automatic and the wrapper function will invoke IntoJava/FromJava for every type,
 passing an environment reference.
 
+```rust
+impl<'j> IntoJava for MyClass {
+  type T = jni::sys::jobject;
+  fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+    let hello = env.new_string("world")?;
+    // TODO!!
+  }
+}
+```
 
+### pointers
+to return pointer type values, add the `ptr` attribute
+
+note that, while possible to pass raw pointers to the JVM, it is not safe by default and must be done with extreme care.
+
+### exceptions
 Errors are thrown automatically when a `Result` is an error. For your errors to work, you must implement the `JniToolboxError` trait for your errors,
 (which just returns the path to your Java error class) and then make a Java error wrapper which can be constructed with a single string argument.
 functions returning `Result`s will automatically have their return value unwrapped and, if is an err, throw an exception and return early.
 
+```rust
+impl JniToolboxError for MyError {
+  fn jclass(&self) -> String {
+    "my/package/some/MyError".to_string()
+  }
+}
+```
+
+```java
+package my.package.some;
+public class MyError {
+  public MyError(String x) {
+    // TODO
+  }
+}
+```
+
 to throw simple exceptions, it's possible to use the `exception` attribute. just pass your exception's path (must be constructable with a single string argument!)
 
-to return pointer type values, add the `ptr` attribute
 
 
-## examples
+### examples
 the following function:
 ```rust
 #[jni(package = "mp.code", class = "Client", ptr)]
