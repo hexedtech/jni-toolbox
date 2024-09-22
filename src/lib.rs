@@ -140,14 +140,14 @@ impl<'j> IntoJava<'j> for String {
 	}
 }
 
-impl<'j> IntoJava<'j> for Vec<String> {
+impl<'j, E> IntoJava<'j> for Vec<E> where E: JavaArrayElement<'j> + IntoJava<'j, T: std::convert::AsRef<jni::objects::JObject<'j>>> {
 	type T = jni::sys::jobjectArray;
 
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		let mut array = env.new_object_array(self.len() as i32, "java/lang/String", JObject::null())?;
+		let mut array = env.new_object_array(self.len() as i32, E::class(), JObject::null())?;
 		for (n, el) in self.into_iter().enumerate() {
-			let string = env.new_string(el)?;
-			env.set_object_array_element(&mut array, n as i32, string)?;
+			let el = el.into_java(env)?;
+			env.set_object_array_element(&mut array, n as i32, &el)?;
 		}
 		Ok(array.into_raw())
 	}
@@ -173,5 +173,17 @@ impl<'j> IntoJava<'j> for uuid::Uuid {
 		let lsb = i64::from_ne_bytes(lsb.to_ne_bytes());
 		env.new_object(&class, "(JJ)V", &[jni::objects::JValueGen::Long(msb), jni::objects::JValueGen::Long(lsb)])
 			.map(|j| j.as_raw())
+	}
+}
+
+pub trait JavaArrayElement<'j> {
+	type T;
+	fn class() -> &'static str;
+}
+
+impl<'j> JavaArrayElement<'j> for String {
+	type T = jni::objects::JString<'j>;
+	fn class() -> &'static str {
+		"java/lang/String"
 	}
 }
