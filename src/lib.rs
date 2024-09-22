@@ -1,4 +1,4 @@
-use jni::objects::JObject;
+use jni::{objects::{JObject, JObjectArray, JString}, sys::{jboolean, jobject}};
 pub use jni_toolbox_macro::jni;
 
 pub trait JniToolboxError: std::error::Error {
@@ -44,6 +44,8 @@ auto_from_java!(i32, jni::sys::jint);
 auto_from_java!(i16, jni::sys::jshort);
 auto_from_java!(f32, jni::sys::jfloat);
 auto_from_java!(f64, jni::sys::jdouble);
+auto_from_java!(JObject<'j>, JObject<'j>);
+auto_from_java!(JObjectArray<'j>, JObjectArray<'j>);
 
 impl<'j> FromJava<'j> for bool {
 	type T = jni::sys::jboolean;
