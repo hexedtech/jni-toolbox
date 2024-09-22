@@ -23,7 +23,6 @@ pub fn from_java_static<'j, T: FromJava<'j>>(env: &mut jni::JNIEnv<'j>, val: T::
 
 pub trait FromJava<'j> : Sized {
 	type T : Sized;
-
 	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error>;
 }
 
@@ -73,9 +72,6 @@ impl<'j, T: FromJava<'j, T = jni::objects::JObject<'j>>> FromJava<'j> for Option
 	}
 }
 
-
-
-
 pub trait IntoJava<'j> {
 	type T;
 
@@ -110,11 +106,17 @@ impl<'j> IntoJava<'j> for bool {
 	}
 }
 
-impl<'j> IntoJava<'j> for String {
+impl<'j> IntoJava<'j> for &str {
 	type T = jni::sys::jstring;
-
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
 		Ok(env.new_string(self)?.as_raw())
+	}
+}
+
+impl<'j> IntoJava<'j> for String {
+	type T = jni::sys::jstring;
+	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+		self.as_str().into_java(env)
 	}
 }
 
@@ -139,5 +141,4 @@ impl<'j, T: IntoJava<'j, T = jni::sys::jobject>> IntoJava<'j> for Option<T> {
 			None => Ok(std::ptr::null_mut()),
 		}
 	}
-
 }

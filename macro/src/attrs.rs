@@ -8,7 +8,6 @@ pub(crate) struct AttrsOptions {
 }
 
 impl AttrsOptions {
-
 	pub(crate) fn parse_attr(attrs: TokenStream) -> Result<Self, syn::Error> {
 		let mut what_next = WhatNext::Nothing;
 

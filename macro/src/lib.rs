@@ -3,7 +3,6 @@ mod wrapper;
 mod args;
 mod ret;
 
-
 /// wrap this function in in a JNI exported fn
 #[proc_macro_attribute]
 pub fn jni(
