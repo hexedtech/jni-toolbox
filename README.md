@@ -1,4 +1,9 @@
 # jni-toolbox
+[![Actions Status](https://github.com/hexedtech/jni-toolbox/actions/workflows/test.yml/badge.svg)](https://github.com/hexedtech/jni-toolbox/actions)
+[![Crates.io Version](https://img.shields.io/crates/v/jni-toolbox)](https://crates.io/crates/jni-toolbox)
+[![docs.rs](https://img.shields.io/docsrs/jni-toolbox)](https://docs.rs/jni-toolbox)
+
+
 this is a simple crate built around [jni-rs](https://github.com/jni-rs/jni-rs) to automatically generate JNI-compatible extern functions
 
 it also wraps functions returning `Result<>`, making short-circuiting easy
