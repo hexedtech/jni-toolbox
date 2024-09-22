@@ -3,13 +3,12 @@
 [![Crates.io Version](https://img.shields.io/crates/v/jni-toolbox)](https://crates.io/crates/jni-toolbox)
 [![docs.rs](https://img.shields.io/docsrs/jni-toolbox)](https://docs.rs/jni-toolbox)
 
+This is a simple crate built around [jni-rs](https://github.com/jni-rs/jni-rs) to automatically generate JNI-compatible extern functions.
 
-this is a simple crate built around [jni-rs](https://github.com/jni-rs/jni-rs) to automatically generate JNI-compatible extern functions
+It also wraps functions returning `Result<>`, making short-circuiting easy.
 
-it also wraps functions returning `Result<>`, making short-circuiting easy
-
-## usage
-just specify package and class on your function, and done!
+## Usage
+Just specify package and class on your function, and done!
 
 ```rust
 #[jni_toolbox::jni(package = "your.package.path", class = "ContainerClass")]
@@ -18,14 +17,13 @@ fn your_function_name(arg: String) -> Result<Vec<String>, String> {
 }
 ```
 
-### conversions
-every type that must go into/from Java must implement `IntoJava` or `FromJava` (methods will receive a `&mut JNIEnv` and can return errors).
-most primitives already have them implemented. conversions are automatic and the wrapper function will invoke IntoJava/FromJava for every type,
-passing an environment reference.
+### Conversions
+Every type that is meant to be sent to Java must implement `IntoJavaObject` (or, unlikely, `IntoJavaPrimitive`); every type that is meant to be
+received from Java must implement `FromJava`. Most primitives and a few common types should already be implemented.
 
 ```rust
-impl<'j> IntoJava for MyClass {
-  type T = jni::sys::jobject;
+impl<'j> IntoJavaObject for MyClass {
+  type T = jni::objects::JObject<'j>
   fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
     let hello = env.new_string("world")?;
     // TODO!!
@@ -33,15 +31,16 @@ impl<'j> IntoJava for MyClass {
 }
 ```
 
-### pointers
-to return pointer type values, add the `ptr` attribute
+### Pointers
+To return pointer type values, add the `ptr` attribute.
 
-note that, while possible to pass raw pointers to the JVM, it is not safe by default and must be done with extreme care.
+Note that, while it is possible to pass raw pointers to the JVM, it is not safe by default and must be done with extreme care.
 
-### exceptions
+### Exceptions
 Errors are thrown automatically when a `Result` is an error. For your errors to work, you must implement the `JniToolboxError` trait for your errors,
 (which just returns the path to your Java error class) and then make a Java error wrapper which can be constructed with a single string argument.
-functions returning `Result`s will automatically have their return value unwrapped and, if is an err, throw an exception and return early.
+
+Functions returning `Result`s will automatically have their return value unwrapped and, if is an err, throw an exception and return early.
 
 ```rust
 impl JniToolboxError for MyError {
@@ -53,19 +52,18 @@ impl JniToolboxError for MyError {
 
 ```java
 package my.package.some;
-public class MyError {
+public class MyError extends Throwable {
   public MyError(String x) {
     // TODO
   }
 }
 ```
 
-to throw simple exceptions, it's possible to use the `exception` attribute. just pass your exception's path (must be constructable with a single string argument!)
+To throw simple exceptions, it's possible to use the `exception` attribute. Pass the exception's fully qualified name (must have a constructor
+that takes in a single `String` argument).
 
-
-
-### examples
-the following function:
+### Examples
+The following function:
 ```rust
 #[jni(package = "mp.code", class = "Client", ptr)]
 fn connect(config: Config) -> Result<Client, ConnectionError> {
@@ -73,15 +71,11 @@ fn connect(config: Config) -> Result<Client, ConnectionError> {
 }
 ```
 
-gets turned into these two functions:
+generates a matching expanded function invoking it:
 
-<details><summary>show macro expansion</summary>
+<details><summary>Show macro expansion</summary>
 
 ```rust
-fn connect(config: Config) -> Result<Client, ConnectionError> {
-  tokio().block_on(Client::connect(config))
-}
-
 #[no_mangle]
 #[allow(unused_mut)]
 pub extern "system" fn Java_mp_code_Client_connect<'local>(
@@ -157,9 +151,10 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
   }
 }
 ```
-
 </details>
 
 
-## status
-this crate is rather early and intended mostly to maintain [`codemp`](https://github.com/hexedtech/codemp) java bindings, however it's also quite small and only runs at comptime, so should be rather safe to use
+## Status
+This crate is early and intended mostly to maintain [`codemp`](https://github.com/hexedtech/codemp)'s Java bindings, so things not used
+there may be missing or slightly broken. However, the crate is also quite small and only runs at compile time, so trying it out in your
+own project should not be a problem.

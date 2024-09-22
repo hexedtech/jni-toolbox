@@ -1,7 +1,9 @@
 pub use jni_toolbox_macro::jni;
 use jni::objects::{JObject, JObjectArray, JString};
 
+/// An error that is meant to be used with jni-toolbox.
 pub trait JniToolboxError: std::error::Error {
+	/// The Java class for the matching exception.
 	fn jclass(&self) -> String;
 }
 
@@ -17,12 +19,17 @@ impl JniToolboxError for jni::errors::JniError {
 	}
 }
 
+/// Used in the generated code to have proper type bindings. You probably didn't want
+/// to call this directly.
 pub fn from_java_static<'j, T: FromJava<'j>>(env: &mut jni::JNIEnv<'j>, val: T::T) -> Result<T, jni::errors::Error> {
 	T::from_java(env, val)
 }
 
+/// Specifies how a Java type should be converted before being fed to Rust.
 pub trait FromJava<'j> : Sized {
+	/// The JNI type representing the input.
 	type T : Sized;
+	/// Attempts to convert this Java object into its Rust counterpart.
 	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error>;
 }
 
@@ -94,8 +101,11 @@ impl<'j> FromJava<'j> for uuid::Uuid {
 	}
 }
 
+/// Specifies how a Rust type should be converted into a Java primitive.
 pub trait IntoJavaPrimitive<'j> {
+	/// The JNI type representing the output.
 	type T;
+	/// Attempts to convert this Rust object into a Java primitive.
 	fn into_java(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
 }
 
@@ -130,9 +140,12 @@ impl<'j> IntoJavaPrimitive<'j> for bool {
 	}
 }
 
+/// Specifies how a Rust type should be converted into a Java object.
 pub trait IntoJavaObject<'j> {
 	type T: std::convert::AsRef<JObject<'j>>;
+	/// The Java class associated with this type.
 	const CLASS: &'static str;
+	/// Attempts to convert this Rust object into a Java object.
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
 }
 
