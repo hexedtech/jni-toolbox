@@ -1,5 +1,5 @@
-use jni::objects::JObject;
 pub use jni_toolbox_macro::jni;
+use jni::objects::{JObject, JString, JObjectArray};
 
 pub trait JniToolboxError: std::error::Error {
 	fn jclass(&self) -> String;
@@ -27,7 +27,7 @@ pub trait FromJava<'j> : Sized {
 }
 
 macro_rules! auto_from_java {
-	($t:ty, $j:ty) => {
+	($t: ty, $j: ty) => {
 		impl<'j> FromJava<'j> for $t {
 			type T = $j;
 		
@@ -55,7 +55,7 @@ impl<'j> FromJava<'j> for bool {
 }
 
 impl<'j> FromJava<'j> for String {
-	type T = jni::objects::JString<'j>;
+	type T = JString<'j>;
 
 	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error> {
 		if value.is_null() { return Err(jni::errors::Error::NullPtr("string can't be null")) };
@@ -63,8 +63,8 @@ impl<'j> FromJava<'j> for String {
 	}
 }
 
-impl<'j, T: FromJava<'j, T = jni::objects::JObject<'j>>> FromJava<'j> for Option<T> {
-	type T = jni::objects::JObject<'j>;
+impl<'j, T: FromJava<'j, T = JObject<'j>>> FromJava<'j> for Option<T> {
+	type T = JObject<'j>;
 
 	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error> {
 		if value.is_null() { return Ok(None) };
@@ -74,7 +74,7 @@ impl<'j, T: FromJava<'j, T = jni::objects::JObject<'j>>> FromJava<'j> for Option
 
 #[cfg(feature = "uuid")]
 impl<'j> FromJava<'j> for uuid::Uuid {
-	type T = jni::objects::JObject<'j>;
+	type T = JObject<'j>;
 	fn from_java(env: &mut jni::JNIEnv<'j>, uuid: Self::T) -> Result<Self, jni::errors::Error> {
 		let lsb = u64::from_ne_bytes(
 			env.call_method(&uuid, "getLeastSignificantBits", "()J", &[])?
@@ -92,18 +92,38 @@ impl<'j> FromJava<'j> for uuid::Uuid {
 	}
 }
 
-pub trait IntoJava<'j> {
-	type T;
+trait JavaType {}
 
-	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
+/// Intermediate trait used to guess the JNI return type.
+/// Usually doesn't need to be manually implemented.
+pub trait IntoJavaRaw<'j, T> {
+	fn into_java_raw(self, env: &mut jni::JNIEnv<'j>) -> Result<T, jni::errors::Error>;
+}
+
+impl <'j, E, T: IntoJavaPrimitive<'j, T = E>> IntoJavaRaw<'j, E> for T {
+	fn into_java_raw(self, env: &mut jni::JNIEnv<'j>) -> Result<E, jni::errors::Error> {
+		self.into_java_primitive(env)
+	}
+}
+
+impl<'j, T: IntoJavaObject<'j>> IntoJavaRaw<'j, jni::sys::jobject> for T {
+	fn into_java_raw(self, env: &mut jni::JNIEnv<'j>) -> Result<jni::sys::jobject, jni::errors::Error> {
+		self.into_java(env)
+			.map(|j| j.as_ref().as_raw())
+	}
+}
+
+pub trait IntoJavaPrimitive<'j> {
+	type T;
+	fn into_java_primitive(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
 }
 
 macro_rules! auto_into_java {
-	($t:ty, $j:ty) => {
-		impl<'j> IntoJava<'j> for $t {
+	($t: ty, $j: ty) => {
+		impl<'j> IntoJavaPrimitive<'j> for $t {
 			type T = $j;
 		
-			fn into_java(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+			fn into_java_primitive(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
 				Ok(self)
 			}
 		}
@@ -117,73 +137,91 @@ auto_into_java!(f32, jni::sys::jfloat);
 auto_into_java!(f64, jni::sys::jdouble);
 auto_into_java!((), ());
 
-impl<'j> IntoJava<'j> for bool {
+impl<'j> IntoJavaPrimitive<'j> for bool {
 	type T = jni::sys::jboolean;
 
 	#[inline]
-	fn into_java(self, _: &mut jni::JNIEnv) -> Result<Self::T, jni::errors::Error> {
+	fn into_java_primitive(self, _: &mut jni::JNIEnv) -> Result<Self::T, jni::errors::Error> {
 		Ok(if self { 1 } else { 0 })
 	}
 }
 
-impl<'j> IntoJava<'j> for &str {
-	type T = jni::sys::jstring;
+pub trait IntoJavaObject<'j> {
+	type T: std::convert::AsRef<JObject<'j>>;
+	const CLASS: &'static str;
+	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
+}
+
+impl<'j> IntoJavaObject<'j> for &str {
+	type T = JString<'j>;
+	const CLASS: &'static str = "java/lang/String";
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		Ok(env.new_string(self)?.as_raw())
+		env.new_string(self)
 	}
 }
 
-impl<'j> IntoJava<'j> for String {
-	type T = jni::sys::jstring;
+impl<'j> IntoJavaObject<'j> for String {
+	type T = JString<'j>;
+	const CLASS: &'static str = "java/lang/String";
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
 		self.as_str().into_java(env)
 	}
 }
 
-impl<'j, E> IntoJava<'j> for Vec<E> where E: JavaArrayElement<'j> + IntoJava<'j, T: std::convert::AsRef<jni::objects::JObject<'j>>> {
-	type T = jni::sys::jobjectArray;
+impl<'j, E: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<E> {
+	type T = JObjectArray<'j>;
+	const CLASS: &'static str = E::CLASS;
 
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		let mut array = env.new_object_array(self.len() as i32, E::class(), JObject::null())?;
+		let mut array = env.new_object_array(self.len() as i32, E::CLASS, JObject::null())?;
 		for (n, el) in self.into_iter().enumerate() {
 			let el = el.into_java(env)?;
 			env.set_object_array_element(&mut array, n as i32, &el)?;
 		}
-		Ok(array.into_raw())
+		Ok(array)
 	}
 }
 
-impl<'j, T: IntoJava<'j, T = jni::sys::jobject>> IntoJava<'j> for Option<T> {
-	type T = T::T;
+impl<'j, E: std::convert::AsRef<JObject<'j>> + JavaFromRaw, T: IntoJavaObject<'j, T = E>> IntoJavaObject<'j> for Option<T> {
+	type T = E;
+	const CLASS: &'static str = T::CLASS;
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
 		match self {
 			Some(x) => x.into_java(env),
-			None => Ok(std::ptr::null_mut()),
+			None => Ok(unsafe { E::from_raw(std::ptr::null_mut()) }) // safe, that's what JObject::null does
 		}
 	}
 }
 
 #[cfg(feature = "uuid")]
-impl<'j> IntoJava<'j> for uuid::Uuid {
-	type T = jni::sys::jobject;
+impl<'j> IntoJavaObject<'j> for uuid::Uuid {
+	type T = jni::objects::JObject<'j>;
+	const CLASS: &'static str = "java/util/UUID";
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		let class = env.find_class("java/util/UUID")?;
+		let class = env.find_class(Self::CLASS)?;
 		let (msb, lsb) = self.as_u64_pair();
 		let msb = i64::from_ne_bytes(msb.to_ne_bytes());
 		let lsb = i64::from_ne_bytes(lsb.to_ne_bytes());
 		env.new_object(&class, "(JJ)V", &[jni::objects::JValueGen::Long(msb), jni::objects::JValueGen::Long(lsb)])
-			.map(|j| j.as_raw())
 	}
 }
 
-pub trait JavaArrayElement<'j> {
-	type T;
-	fn class() -> &'static str;
+/// Needed internally to perform some operations.
+trait JavaFromRaw {
+	unsafe fn from_raw(raw: jni::sys::jobject) -> Self;
 }
 
-impl<'j> JavaArrayElement<'j> for String {
-	type T = jni::objects::JString<'j>;
-	fn class() -> &'static str {
-		"java/lang/String"
-	}
+macro_rules! auto_from_raw {
+	($type: ty) => {
+		impl JavaFromRaw for $type {
+			#[inline]
+			unsafe fn from_raw(raw: jni::sys::jobject) -> Self {
+				Self::from_raw(raw)
+			}
+		}
+	};
 }
+
+auto_from_raw!(JObject<'_>);
+auto_from_raw!(JString<'_>);
+auto_from_raw!(JObjectArray<'_>);
