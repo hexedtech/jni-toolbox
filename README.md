@@ -32,8 +32,6 @@ impl<'j> IntoJavaObject for MyClass {
 ```
 
 ### Pointers
-To return pointer type values, add the `ptr` attribute.
-
 Note that, while it is possible to pass raw pointers to the JVM, it is not safe by default and must be done with extreme care.
 
 ### Exceptions
@@ -67,7 +65,7 @@ The following function:
 ```rust
 #[jni(package = "mp.code", class = "Client", ptr)]
 fn connect(config: Config) -> Result<Client, ConnectionError> {
-  tokio().block_on(Client::connect(config))
+  super::tokio().block_on(Client::connect(config))
 }
 ```
 
@@ -76,15 +74,18 @@ generates a matching expanded function invoking it:
 <details><summary>Show macro expansion</summary>
 
 ```rust
+#[doc = " Connect using the given credentials to the default server, and return a [Client] to interact with it."]
+fn connect(config: Config) -> Result<Client, ConnectionError> {
+  super::tokio().block_on(Client::connect(config))
+}
 #[no_mangle]
-#[allow(unused_mut)]
+#[allow(unused_unit)]
 pub extern "system" fn Java_mp_code_Client_connect<'local>(
   mut env: jni::JNIEnv<'local>,
   _class: jni::objects::JClass<'local>,
-  mut config: <Config as jni_toolbox::FromJava<'local>>::T,
-) -> <Client as jni_toolbox::IntoJava<'local>>::T {
+  config: <Config as jni_toolbox::FromJava<'local>>::From,
+) -> <Client as jni_toolbox::IntoJava<'local>>::Ret {
   use jni_toolbox::{FromJava, IntoJava, JniToolboxError};
-  let mut env_copy = unsafe { env.unsafe_clone() };
   let config_new = match jni_toolbox::from_java_static::<Config>(&mut env, config) {
     Ok(x) => x,
     Err(e) => {
@@ -98,7 +99,10 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
       return std::ptr::null_mut();
     }
   };
-  match connect(config_new) {
+  let mut env_copy = unsafe { env.unsafe_clone() };
+  let result = connect(config_new);
+  let ret = match result {
+    Ok(x) => x,
     Err(e) => match env_copy.find_class(e.jclass()) {
       Err(e) => {
         $crate::panicking::panic_fmt($crate::const_format_args!(
@@ -135,19 +139,19 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
         },
       },
     },
-    Ok(ret) => match ret.into_java(&mut env_copy) {
-      Ok(fin) => return fin,
-      Err(e) => {
-        let _ = env_copy.throw_new(
-          "java/lang/RuntimeException",
-          $crate::__export::must_use({
-            let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
-            res
-          }),
-        );
-        return std::ptr::null_mut();
-      }
-    },
+  };
+  match ret.into_java(&mut env_copy) {
+    Ok(fin) => fin,
+    Err(e) => {
+      let _ = env_copy.throw_new(
+        "java/lang/RuntimeException",
+        $crate::__export::must_use({
+          let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
+          res
+        }),
+      );
+      std::ptr::null_mut()
+    }
   }
 }
 ```
