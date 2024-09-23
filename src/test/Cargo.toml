@@ -1,0 +1,13 @@
+[package]
+name = "jni-toolbox-test"
+description = "test binary for jni-toolbox"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+path = "test.rs"
+
+[dependencies]
+jni-toolbox = { path = "../.." }
+jni = "0.21"

@@ -1,0 +1,17 @@
+plugins {
+	id 'java-library'
+}
+
+dependencies {
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.1'
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.3.1'
+}
+
+repositories {
+	mavenCentral()
+}
+
+test {
+	useJUnitPlatform()
+	systemProperty 'java.library.path','target/debug'
+}

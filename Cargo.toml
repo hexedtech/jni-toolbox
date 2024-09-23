@@ -1,5 +1,5 @@
 [workspace]
-members = ["macro"]
+members = ["macro", "src/test"]
 
 [package]
 name = "jni-toolbox"
