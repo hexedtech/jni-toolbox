@@ -1,11 +1,9 @@
 pub mod into_java;
 pub mod from_java;
-pub mod raw_java;
 
 pub use jni_toolbox_macro::jni;
-pub use into_java::{IntoJavaObject, IntoJavaPrimitive};
+pub use into_java::{IntoJavaObject, IntoJava};
 pub use from_java::{FromJava, from_java_static};
-pub use raw_java::IntoJavaRaw;
 
 
 /// An error that is meant to be used with jni-toolbox.

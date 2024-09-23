@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use quote::TokenStreamExt;
+use quote::{ToTokens, TokenStreamExt};
 use syn::Ident;
 
 pub(crate) struct ArgumentOptions {
@@ -109,7 +109,7 @@ impl ArgumentOptions {
 					},
 				};
 			});
-			incoming.append_all(quote::quote!( mut #pat: <#ty as jni_toolbox::FromJava<'local>>::T,));
+			incoming.append_all(quote::quote!( #pat: <#ty as jni_toolbox::FromJava<'local>>::From,));
 			forwarding.append_all(quote::quote!( #new_pat,));
 		}
 
@@ -120,4 +120,26 @@ impl ArgumentOptions {
 struct SingleArgument {
 	pat: syn::Ident,
 	ty: Box<syn::Type>,
+}
+
+#[allow(unused)]
+fn bare_type(t: syn::Type) -> TokenStream {
+	match t {
+		syn::Type::Array(x) => bare_type(*x.elem),
+		syn::Type::BareFn(f) => f.to_token_stream(),
+		syn::Type::Group(x) => bare_type(*x.elem),
+		syn::Type::ImplTrait(t) => t.to_token_stream(),
+		syn::Type::Infer(x) => x.to_token_stream(),
+		syn::Type::Macro(x) => x.to_token_stream(),
+		syn::Type::Never(x) => x.to_token_stream(),
+		syn::Type::Paren(p) => bare_type(*p.elem),
+		syn::Type::Path(p) => p.to_token_stream(),
+		syn::Type::Ptr(x) => bare_type(*x.elem),
+		syn::Type::Reference(r) => bare_type(*r.elem),
+		syn::Type::Slice(s) => bare_type(*s.elem),
+		syn::Type::TraitObject(t) => t.to_token_stream(),
+		syn::Type::Tuple(x) => x.to_token_stream(),
+		syn::Type::Verbatim(x) => x.to_token_stream(),
+		_ => todo!(),
+	}
 }
