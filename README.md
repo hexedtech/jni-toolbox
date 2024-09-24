@@ -91,17 +91,16 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
       return std::ptr::null_mut();
     }
   };
-  let mut env_copy = unsafe { env.unsafe_clone() };
   let result = connect(config_new);
   let ret = match result {
     Ok(x) => x,
-    Err(e) => match env_copy.find_class(e.jclass()) {
+    Err(e) => match env.find_class(e.jclass()) {
       Err(e) => panic!("error throwing Java exception -- failed resolving error class: {e}"),
-      Ok(class) => match env_copy.new_string(format!("{e:?}")) {
+      Ok(class) => match env.new_string(format!("{e:?}")) {
         Err(e) => panic!("error throwing Java exception --  failed creating error string: {e}"),
-        Ok(msg) => match env_copy.new_object(class, "(Ljava/lang/String;)V", &[jni::objects::JValueGen::Object(&msg)]) {
+        Ok(msg) => match env.new_object(class, "(Ljava/lang/String;)V", &[jni::objects::JValueGen::Object(&msg)]) {
           Err(e) => panic!("error throwing Java exception -- failed creating object: {e}"));
-          Ok(obj) => match env_copy.throw(jni::objects::JThrowable::from(obj)) {
+          Ok(obj) => match env.throw(jni::objects::JThrowable::from(obj)) {
             Err(e) => panic!("error throwing Java exception -- failed throwing: {e}"),
             Ok(_) => return std::ptr::null_mut(),
           },
@@ -109,10 +108,10 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
       },
     },
   };
-  match ret.into_java(&mut env_copy) {
+  match ret.into_java(&mut env) {
     Ok(fin) => fin,
     Err(e) => {
-      let _ = env_copy.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+      let _ = env.throw_new("java/lang/RuntimeException", format!("{e:?}"));
       std::ptr::null_mut()
     }
   }
