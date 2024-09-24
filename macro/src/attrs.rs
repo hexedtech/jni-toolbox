@@ -4,6 +4,7 @@ pub(crate) struct AttrsOptions {
 	pub(crate) package: String,
 	pub(crate) class: String,
 	pub(crate) exception: Option<String>,
+	pub(crate) inline: bool,
 }
 
 impl AttrsOptions {
@@ -13,6 +14,7 @@ impl AttrsOptions {
 		let mut package = None;
 		let mut class = None;
 		let mut exception = None;
+		let mut inline = false;
 	
 		for attr in attrs {
 			match what_next {
@@ -23,6 +25,7 @@ impl AttrsOptions {
 							"class" => what_next = WhatNext::Class,
 							"exception" => what_next = WhatNext::Exception,
 							"ptr" => {}, // accepted for backwards compatibility
+							"inline" => inline = true,
 							_ => return Err(syn::Error::new(Span::call_site(), "unexpected attribute on macro: {attr}")),
 						}
 					}
@@ -51,7 +54,7 @@ impl AttrsOptions {
 		let Some(package) = package else { return Err(syn::Error::new(Span::call_site(), "missing required attribute 'package'")) };
 		let Some(class) = class else { return Err(syn::Error::new(Span::call_site(), "missing required attribute 'class'")) };
 
-		Ok(Self { package, class, exception })
+		Ok(Self { package, class, exception, inline })
 	}
 }
 
