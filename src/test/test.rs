@@ -19,3 +19,8 @@ fn to_vec(a: String, b: String, c: String) -> Vec<String> {
 fn maybe(idk: Option<String>) -> bool {
 	idk.is_some()
 }
+
+#[jni(package = "toolbox", class = "Main")]
+fn raw<'local>(env: &mut jni::JNIEnv<'local>) -> Result<jni::objects::JString<'local>, jni::errors::Error> {
+	env.new_string("hello world!")
+}

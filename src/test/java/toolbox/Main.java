@@ -14,6 +14,7 @@ public class Main {
 	static native String concat(String a, String b);
 	static native String[] to_vec(String a, String b, String c);
 	static native boolean maybe(String optional);
+	static native String raw();
 
 	@Test
 	public void argumentsByValue() {
@@ -46,6 +47,11 @@ public class Main {
 	public void optional() {
 		assertEquals(Main.maybe(null), false);
 		assertEquals(Main.maybe("aa"), true);
+	}
+
+	@Test
+	public void passEnv() {
+		assertEquals(Main.raw(), "hello world!");
 	}
 	
 }
