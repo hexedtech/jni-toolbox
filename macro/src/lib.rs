@@ -3,7 +3,7 @@ mod wrapper;
 mod args;
 mod ret;
 
-/// wrap this function in in a JNI exported fn
+/// Wrap this function in in a JNI exported fn.
 #[proc_macro_attribute]
 pub fn jni(
 	attrs: proc_macro::TokenStream,

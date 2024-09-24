@@ -6,13 +6,16 @@ use syn::{ReturnType, Type};
 pub(crate) struct ReturnOptions {
 	pub(crate) ty: Option<Box<Type>>,
 	pub(crate) result: bool,
+	pub(crate) pointer: bool,
 	pub(crate) void: bool,
 }
+
+const PRIMITIVE_TYPES: [&str; 7] = ["i8", "i16", "i32", "i64", "f32", "f64", "bool"];
 
 impl ReturnOptions {
 	pub(crate) fn parse_signature(ret: &ReturnType) -> Result<Self, syn::Error> {
 		match ret {
-			syn::ReturnType::Default => Ok(Self { ty: None, result: false, void: true }),
+			syn::ReturnType::Default => Ok(Self { ty: None, result: false, void: true, pointer: false }),
 			syn::ReturnType::Type(_tok, ty) => match *ty.clone() {
 				syn::Type::Path(path) => {
 					let Some(last) = path.path.segments.last() else {
@@ -26,14 +29,19 @@ impl ReturnOptions {
 							syn::PathArguments::AngleBracketed(ref generics) => for generic in generics.args.iter() {
 								match generic {
 									syn::GenericArgument::Lifetime(_) => continue,
-									syn::GenericArgument::Type(ty) => return Ok(Self { ty: Some(Box::new(ty.clone())), result: true, void: is_void(ty) }),
-									_ => return Err(syn::Error::new(Span::call_site(), "unexpected type in Result")),
+									syn::GenericArgument::Type(ty) => {
+										// TODO checking by making ty a token stream and then string equals is not exactly great!
+										let pointer = !PRIMITIVE_TYPES.iter().any(|t| ty.to_token_stream().to_string() == *t);
+										return Ok(Self { ty: Some(Box::new(ty.clone())), result: true, void: is_void(ty), pointer });
+									},
+									_ => return Err(syn::Error::new(Span::call_site(), "unexpected type in Result"))
 								}
 							}
 						}
 					}
 
-					Ok(Self { ty: Some(Box::new(Type::Path(path.clone()))), result: false, void: false })
+					let pointer = !PRIMITIVE_TYPES.iter().any(|t| last.ident == t);
+					Ok(Self { ty: Some(Box::new(Type::Path(path.clone()))), result: false, void: false, pointer })
 				},
 				_ => Err(syn::Error::new(Span::call_site(), "unsupported return type")),
 			},
@@ -42,8 +50,8 @@ impl ReturnOptions {
 
 	pub(crate) fn tokens(&self) -> TokenStream {
 		match &self.ty { // TODO why do we need to invoke syn::Token! macro ???
-			Some(t) => quote::quote!( -> <#t as jni_toolbox::IntoJava<'local>>::T ),
 			None => ReturnType::Default.to_token_stream(),
+			Some(t) => quote::quote!( -> <#t as jni_toolbox::IntoJava<'local>>::Ret )
 		}
 	}
 }

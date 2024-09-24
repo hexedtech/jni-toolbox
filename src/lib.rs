@@ -1,179 +1,53 @@
-use jni::{objects::{JObject, JObjectArray, JString}, sys::jobject};
-pub use jni_toolbox_macro::jni;
+pub mod into_java;
+pub mod from_java;
 
+pub use jni_toolbox_macro::jni;
+pub use into_java::{IntoJavaObject, IntoJava};
+pub use from_java::{FromJava, from_java_static};
+
+
+/// An error that is meant to be used with jni-toolbox.
 pub trait JniToolboxError: std::error::Error {
+	/// The Java class for the matching exception.
 	fn jclass(&self) -> String;
 }
 
 impl JniToolboxError for jni::errors::Error {
 	fn jclass(&self) -> String {
-		"java/lang/RuntimeException".to_string()
+		match self {
+			jni::errors::Error::NullPtr(_) => "java/lang/NullPointerException",
+			_ => "java/lang/RuntimeException",
+			// jni::errors::Error::WrongJValueType(_, _) => todo!(),
+			// jni::errors::Error::InvalidCtorReturn => todo!(),
+			// jni::errors::Error::InvalidArgList(_) => todo!(),
+			// jni::errors::Error::MethodNotFound { name, sig } => todo!(),
+			// jni::errors::Error::FieldNotFound { name, sig } => todo!(),
+			// jni::errors::Error::JavaException => todo!(),
+			// jni::errors::Error::JNIEnvMethodNotFound(_) => todo!(),
+			// jni::errors::Error::NullDeref(_) => todo!(),
+			// jni::errors::Error::TryLock => todo!(),
+			// jni::errors::Error::JavaVMMethodNotFound(_) => todo!(),
+			// jni::errors::Error::FieldAlreadySet(_) => todo!(),
+			// jni::errors::Error::ThrowFailed(_) => todo!(),
+			// jni::errors::Error::ParseFailed(_, _) => todo!(),
+			// jni::errors::Error::JniCall(_) => todo!(),
+		}
+			.to_string()
 	}
 }
 
 impl JniToolboxError for jni::errors::JniError {
 	fn jclass(&self) -> String {
-		"java/lang/RuntimeException".to_string()
-	}
-}
-
-pub fn from_java_static<'j, T: FromJava<'j>>(env: &mut jni::JNIEnv<'j>, val: T::T) -> Result<T, jni::errors::Error> {
-	T::from_java(env, val)
-}
-
-pub trait FromJava<'j> : Sized {
-	type T : Sized;
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error>;
-}
-
-macro_rules! auto_from_java {
-	($t:ty, $j:ty) => {
-		impl<'j> FromJava<'j> for $t {
-			type T = $j;
-		
-			#[inline]
-			fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
-				Ok(value)
-			}
-		}
-	};
-}
-
-auto_from_java!(i64, jni::sys::jlong);
-auto_from_java!(i32, jni::sys::jint);
-auto_from_java!(i16, jni::sys::jshort);
-auto_from_java!(f32, jni::sys::jfloat);
-auto_from_java!(f64, jni::sys::jdouble);
-auto_from_java!(JObject<'j>, JObject<'j>);
-auto_from_java!(JObjectArray<'j>, JObjectArray<'j>);
-
-impl<'j> FromJava<'j> for bool {
-	type T = jni::sys::jboolean;
-
-	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::T) -> Result<Self, jni::errors::Error> {
-		Ok(value == 1)
-	}
-}
-
-impl<'j> FromJava<'j> for String {
-	type T = jni::objects::JString<'j>;
-
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error> {
-		if value.is_null() { return Err(jni::errors::Error::NullPtr("string can't be null")) };
-		Ok(unsafe { env.get_string_unchecked(&value) }?.into()) // unsafe for efficiency
-	}
-}
-
-impl<'j, T: FromJava<'j, T = jni::objects::JObject<'j>>> FromJava<'j> for Option<T> {
-	type T = jni::objects::JObject<'j>;
-
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::T) -> Result<Self, jni::errors::Error> {
-		if value.is_null() { return Ok(None) };
-		Ok(Some(T::from_java(env, value)?))
-	}
-}
-
-#[cfg(feature = "uuid")]
-impl<'j> FromJava<'j> for uuid::Uuid {
-	type T = jni::objects::JObject<'j>;
-	fn from_java(env: &mut jni::JNIEnv<'j>, uuid: Self::T) -> Result<Self, jni::errors::Error> {
-		let lsb = u64::from_ne_bytes(
-			env.call_method(&uuid, "getLeastSignificantBits", "()J", &[])?
-				.j()?
-				.to_ne_bytes()
-		);
-
-		let msb = u64::from_ne_bytes(
-			env.call_method(&uuid, "getMostSignificantBits", "()J", &[])?
-				.j()?
-				.to_ne_bytes()
-		);
-		
-		Ok(uuid::Uuid::from_u64_pair(msb, lsb))
-	}
-}
-
-pub trait IntoJava<'j> {
-	type T;
-
-	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error>;
-}
-
-macro_rules! auto_into_java {
-	($t:ty, $j:ty) => {
-		impl<'j> IntoJava<'j> for $t {
-			type T = $j;
-		
-			fn into_java(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-				Ok(self)
-			}
-		}
-	};
-}
-
-auto_into_java!(i64, jni::sys::jlong);
-auto_into_java!(i32, jni::sys::jint);
-auto_into_java!(i16, jni::sys::jshort);
-auto_into_java!(f32, jni::sys::jfloat);
-auto_into_java!(f64, jni::sys::jdouble);
-auto_into_java!((), ());
-
-impl<'j> IntoJava<'j> for bool {
-	type T = jni::sys::jboolean;
-
-	#[inline]
-	fn into_java(self, _: &mut jni::JNIEnv) -> Result<Self::T, jni::errors::Error> {
-		Ok(if self { 1 } else { 0 })
-	}
-}
-
-impl<'j> IntoJava<'j> for &str {
-	type T = jni::sys::jstring;
-	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		Ok(env.new_string(self)?.as_raw())
-	}
-}
-
-impl<'j> IntoJava<'j> for String {
-	type T = jni::sys::jstring;
-	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		self.as_str().into_java(env)
-	}
-}
-
-impl<'j> IntoJava<'j> for Vec<String> {
-	type T = jni::sys::jobjectArray;
-
-	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		let mut array = env.new_object_array(self.len() as i32, "java/lang/String", JObject::null())?;
-		for (n, el) in self.into_iter().enumerate() {
-			let string = env.new_string(el)?;
-			env.set_object_array_element(&mut array, n as i32, string)?;
-		}
-		Ok(array.into_raw())
-	}
-}
-
-impl<'j, T: IntoJava<'j, T = jni::sys::jobject>> IntoJava<'j> for Option<T> {
-	type T = T::T;
-	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
 		match self {
-			Some(x) => x.into_java(env),
-			None => Ok(std::ptr::null_mut()),
+			_ => "java/lang/RuntimeException",
+			// jni::errors::JniError::Unknown => todo!(),
+			// jni::errors::JniError::ThreadDetached => todo!(),
+			// jni::errors::JniError::WrongVersion => todo!(),
+			// jni::errors::JniError::NoMemory => todo!(),
+			// jni::errors::JniError::AlreadyCreated => todo!(),
+			// jni::errors::JniError::InvalidArguments => todo!(),
+			// jni::errors::JniError::Other(_) => todo!(),
 		}
-	}
-}
-
-#[cfg(feature = "uuid")]
-impl<'j> IntoJava<'j> for uuid::Uuid {
-	type T = jni::sys::jobject;
-	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
-		let class = env.find_class("java/util/UUID")?;
-		let (msb, lsb) = self.as_u64_pair();
-		let msb = i64::from_ne_bytes(msb.to_ne_bytes());
-		let lsb = i64::from_ne_bytes(lsb.to_ne_bytes());
-		env.new_object(&class, "(JJ)V", &[jni::objects::JValueGen::Long(msb), jni::objects::JValueGen::Long(lsb)])
-			.map(|j| j.as_raw())
+			.to_string()
 	}
 }

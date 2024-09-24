@@ -2,8 +2,6 @@ name: test
 
 on:
   push:
-    branches:
-      - dev
 
 env:
   CARGO_TERM_COLOR: always
@@ -28,3 +26,5 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
       - run: cargo build --verbose
       - run: cargo test --verbose
+      - uses: gradle/actions/setup-gradle@v4
+      - run: gradle test

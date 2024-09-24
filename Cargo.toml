@@ -1,5 +1,5 @@
 [workspace]
-members = ["macro"]
+members = ["macro", "src/test"]
 
 [package]
 name = "jni-toolbox"
@@ -13,6 +13,11 @@ version = "0.1.3"
 edition = "2021"
 
 [dependencies]
-jni-toolbox-macro = "0.1.3"
+#jni-toolbox-macro = "0.1.3"
+jni-toolbox-macro = { path = "./macro" }
 jni = "0.21"
 uuid = { version = "1.10", optional = true }
+
+[features]
+default = []
+uuid = ["dep:uuid"]

@@ -22,29 +22,31 @@ fn unpack_pat(pat: syn::Pat) -> Result<TokenStream, syn::Error> {
 	}
 }
 
-fn type_equals(ty: Box<syn::Type>, search: impl AsRef<str>) -> bool {
+fn bare_type(ty: Box<syn::Type>) -> Option<syn::TypePath> {
 	match *ty {
-		syn::Type::Array(_) => false,
-		syn::Type::BareFn(_) => false,
-		syn::Type::ImplTrait(_) => false,
-		syn::Type::Infer(_) => false,
-		syn::Type::Macro(_) => false,
-		syn::Type::Never(_) => false,
-		syn::Type::Ptr(_) => false,
-		syn::Type::Slice(_) => false,
-		syn::Type::TraitObject(_) => false,
-		syn::Type::Tuple(_) => false,
-		syn::Type::Verbatim(_) => false,
-		syn::Type::Group(g) => type_equals(g.elem, search),
-		syn::Type::Paren(p) => type_equals(p.elem, search),
-		syn::Type::Reference(r) => type_equals(r.elem, search),
-		syn::Type::Path(ty) => {
-			ty.path.segments
-				.last()
-				.map_or(false, |e| e.ident == search.as_ref())
-		},
-		_ => false,
+		syn::Type::Array(a) => bare_type(a.elem),
+		syn::Type::BareFn(_) => None,
+		syn::Type::ImplTrait(_) => None,
+		syn::Type::Infer(_) => None,
+		syn::Type::Macro(_) => None,
+		syn::Type::Never(_) => None,
+		syn::Type::TraitObject(_) => None,
+		syn::Type::Verbatim(_) => None,
+		syn::Type::Ptr(p) => bare_type(p.elem),
+		syn::Type::Slice(s) => bare_type(s.elem),
+		syn::Type::Tuple(t) => bare_type(Box::new(t.elems.first()?.clone())), // TODO
+		syn::Type::Group(g) => bare_type(g.elem),
+		syn::Type::Paren(p) => bare_type(p.elem),
+		syn::Type::Reference(r) => bare_type(r.elem),
+		syn::Type::Path(ty) => Some(ty),
+		_ => todo!(),
 	}
+}
+
+fn type_equals(ty: Box<syn::Type>, search: impl AsRef<str>) -> bool {
+	let Some(ty) = bare_type(ty) else { return false };
+	let Some(last) = ty.path.segments.last() else { return false };
+	last.ident == search.as_ref()
 }
 
 impl ArgumentOptions {
@@ -83,9 +85,9 @@ impl ArgumentOptions {
 		if pass_env {
 			if let Some(arg) = args_iter.next() {
 				let pat = arg.pat;
-				let ty = arg.ty;
+				let ty = bare_type(arg.ty);
 				incoming.append_all(quote::quote!( mut #pat: #ty,));
-				forwarding.append_all(quote::quote!( #pat,));
+				forwarding.append_all(quote::quote!( &mut #pat,));
 			}
 		} else {
 			incoming.append_all(quote::quote!( mut #env: jni::JNIEnv<'local>,));
@@ -104,12 +106,12 @@ impl ArgumentOptions {
 					Ok(x) => x,
 					Err(e) => {
 						// TODO should we panic here instead?
-						let _ = #env.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+						let _ = #env.throw_new(e.jclass(), format!("{e:?}"));
 						return #ret_expr;
 					},
 				};
 			});
-			incoming.append_all(quote::quote!( mut #pat: <#ty as jni_toolbox::FromJava<'local>>::T,));
+			incoming.append_all(quote::quote!( #pat: <#ty as jni_toolbox::FromJava<'local>>::From,));
 			forwarding.append_all(quote::quote!( #new_pat,));
 		}
 

@@ -1,1 +1,10 @@
+# rust
 /target
+
+# gradle
+/build
+/bin
+/.settings
+/.gradle
+.project
+.classpath
