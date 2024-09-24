@@ -71,13 +71,11 @@ fn connect(config: Config) -> Result<Client, ConnectionError> {
 
 generates a matching expanded function invoking it:
 
-<details><summary>Show macro expansion</summary>
-
 ```rust
-#[doc = " Connect using the given credentials to the default server, and return a [Client] to interact with it."]
 fn connect(config: Config) -> Result<Client, ConnectionError> {
   super::tokio().block_on(Client::connect(config))
 }
+
 #[no_mangle]
 #[allow(unused_unit)]
 pub extern "system" fn Java_mp_code_Client_connect<'local>(
@@ -89,13 +87,7 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
   let config_new = match jni_toolbox::from_java_static::<Config>(&mut env, config) {
     Ok(x) => x,
     Err(e) => {
-      let _ = env.throw_new(
-        "java/lang/RuntimeException",
-        $crate::__export::must_use({
-          let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
-          res
-        }),
-      );
+      let _ = env.throw_new("java/lang/RuntimeException", format!("{e:?}"));
       return std::ptr::null_mut();
     }
   };
@@ -104,36 +96,13 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
   let ret = match result {
     Ok(x) => x,
     Err(e) => match env_copy.find_class(e.jclass()) {
-      Err(e) => {
-        $crate::panicking::panic_fmt($crate::const_format_args!(
-          "error throwing Java exception -- failed resolving error class: {e}"
-        ));
-      }
-      Ok(class) => match env_copy.new_string($crate::__export::must_use({
-        let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
-        res
-      })) {
-        Err(e) => {
-          $crate::panicking::panic_fmt($crate::const_format_args!(
-            "error throwing Java exception --  failed creating error string: {e}"
-          ));
-        }
-        Ok(msg) => match env_copy.new_object(
-          class,
-          "(Ljava/lang/String;)V",
-          &[jni::objects::JValueGen::Object(&msg)],
-        ) {
-          Err(e) => {
-            $crate::panicking::panic_fmt($crate::const_format_args!(
-              "error throwing Java exception -- failed creating object: {e}"
-            ));
-          }
+      Err(e) => panic!("error throwing Java exception -- failed resolving error class: {e}"),
+      Ok(class) => match env_copy.new_string(format!("{e:?}")) {
+        Err(e) => panic!("error throwing Java exception --  failed creating error string: {e}"),
+        Ok(msg) => match env_copy.new_object(class, "(Ljava/lang/String;)V", &[jni::objects::JValueGen::Object(&msg)]) {
+          Err(e) => panic!("error throwing Java exception -- failed creating object: {e}"));
           Ok(obj) => match env_copy.throw(jni::objects::JThrowable::from(obj)) {
-            Err(e) => {
-              $crate::panicking::panic_fmt($crate::const_format_args!(
-                "error throwing Java exception -- failed throwing: {e}"
-              ));
-            }
+            Err(e) => panic!("error throwing Java exception -- failed throwing: {e}"),
             Ok(_) => return std::ptr::null_mut(),
           },
         },
@@ -143,20 +112,12 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
   match ret.into_java(&mut env_copy) {
     Ok(fin) => fin,
     Err(e) => {
-      let _ = env_copy.throw_new(
-        "java/lang/RuntimeException",
-        $crate::__export::must_use({
-          let res = $crate::fmt::format($crate::__export::format_args!("{e:?}"));
-          res
-        }),
-      );
+      let _ = env_copy.throw_new("java/lang/RuntimeException", format!("{e:?}"));
       std::ptr::null_mut()
     }
   }
 }
 ```
-</details>
-
 
 ## Status
 This crate is early and intended mostly to maintain [`codemp`](https://github.com/hexedtech/codemp)'s Java bindings, so things not used
