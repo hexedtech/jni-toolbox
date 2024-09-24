@@ -14,6 +14,7 @@ macro_rules! auto_into_java {
 		impl<'j> IntoJava<'j> for $t {
 			type Ret = $j;
 		
+			#[inline]
 			fn into_java(self, _: &mut jni::JNIEnv<'j>) -> Result<Self::Ret, jni::errors::Error> {
 				Ok(self)
 			}
@@ -43,6 +44,7 @@ impl<'j> IntoJava<'j> for bool {
 impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
 	type Ret = jni::sys::jobject;
 
+	#[inline]
 	fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::Ret, jni::errors::Error> {
 		Ok(self.into_java_object(env)?.as_raw())
 	}
@@ -58,6 +60,7 @@ pub trait IntoJavaObject<'j> {
 
 impl<'j> IntoJavaObject<'j> for JObject<'j> {
 	const CLASS: &'static str = "java/lang/Object";
+	#[inline]
 	fn into_java_object(self, _: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error> {
 		Ok(self)
 	}
@@ -67,6 +70,7 @@ macro_rules! auto_into_java_object {
 	($t:ty, $cls:literal) => {
 		impl<'j> IntoJavaObject<'j> for $t {
 			const CLASS: &'static str = $cls;
+			#[inline]
 			fn into_java_object(self, _: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error> {
 				Ok(self.into())
 			}
