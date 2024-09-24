@@ -87,7 +87,7 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
   let config_new = match jni_toolbox::from_java_static::<Config>(&mut env, config) {
     Ok(x) => x,
     Err(e) => {
-      let _ = env.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+      let _ = env.throw_new(e.jclass(), format!("{e:?}"));
       return std::ptr::null_mut();
     }
   };
@@ -111,7 +111,7 @@ pub extern "system" fn Java_mp_code_Client_connect<'local>(
   match ret.into_java(&mut env) {
     Ok(fin) => fin,
     Err(e) => {
-      let _ = env.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+      let _ = env.throw_new(e.jclass(), format!("{e:?}"));
       std::ptr::null_mut()
     }
   }
