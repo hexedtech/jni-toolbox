@@ -27,4 +27,5 @@ jobs:
       - run: cargo build --verbose
       - run: cargo test --verbose
       - uses: gradle/actions/setup-gradle@v4
+      - run: cargo build -p jni-toolbox-test
       - run: gradle test
