@@ -1,12 +1,9 @@
 use proc_macro2::{Span, TokenStream};
-use quote::TokenStreamExt;
 use syn::Item;
 
 use crate::{args::ArgumentOptions, attrs::AttrsOptions, ret::ReturnOptions};
 
 pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenStream, syn::Error> {
-	let mut out = TokenStream::new();
-
 	let Item::Fn(fn_item) = syn::parse2(input.clone())? else {
 		return Err(syn::Error::new(Span::call_site(), "#[jni] is only supported on functions"));
 	};
@@ -47,10 +44,9 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 	};
 
 
-	let env_ident = args.env;
+	let env_iden = args.env;
 	let forwarding = args.forwarding;
 	let invocation = quote::quote! {
-		let mut env_copy = unsafe { #env_ident.unsafe_clone() };
 		let result = #fn_name_inner(#forwarding);
 	};
 
@@ -60,7 +56,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			quote::quote! {
 				let ret = match result {
 					Ok(x) => x,
-					Err(e) => match env_copy.throw_new(#exception, format!("{e:?}")) {
+					Err(e) => match #env_iden.throw_new(#exception, format!("{e:?}")) {
 						Ok(_) => return #return_expr,
 						Err(e) => panic!("error throwing java exception: {e}"),
 					}
@@ -70,13 +66,13 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			quote::quote! {
 				let ret = match result {
 					Ok(x) => x,
-					Err(e) => match env_copy.find_class(e.jclass()) {
+					Err(e) => match #env_iden.find_class(e.jclass()) {
 						Err(e) => panic!("error throwing Java exception -- failed resolving error class: {e}"),
-						Ok(class) => match env_copy.new_string(format!("{e:?}")) {
+						Ok(class) => match #env_iden.new_string(format!("{e:?}")) {
 							Err(e) => panic!("error throwing Java exception --  failed creating error string: {e}"),
-							Ok(msg) => match env_copy.new_object(class, "(Ljava/lang/String;)V", &[jni::objects::JValueGen::Object(&msg)]) {
+							Ok(msg) => match #env_iden.new_object(class, "(Ljava/lang/String;)V", &[jni::objects::JValueGen::Object(&msg)]) {
 								Err(e) => panic!("error throwing Java exception -- failed creating object: {e}"),
-								Ok(obj) => match env_copy.throw(jni::objects::JThrowable::from(obj)) {
+								Ok(obj) => match #env_iden.throw(jni::objects::JThrowable::from(obj)) {
 									Err(e) => panic!("error throwing Java exception -- failed throwing: {e}"),
 									Ok(_) => return #return_expr,
 								},
@@ -92,18 +88,28 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 
 
 	let reverse_transformations = quote::quote! {
-		match ret.into_java(&mut env_copy) {
+		match ret.into_java(&mut #env_iden) {
 			Ok(fin) => fin,
 			Err(e) => {
 				// TODO should we panic instead?
-				let _ = env_copy.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+				let _ = #env_iden.throw_new("java/lang/RuntimeException", format!("{e:?}"));
 				#return_expr
 			}
 		}
 	};
 
-	let body = quote::quote! {
-		{
+	let inline_macro = if attrs.inline {
+		quote::quote!(#[inline])
+	} else {
+		quote::quote!()
+	};
+
+	Ok(quote::quote! {
+		#inline_macro
+		#input
+
+		#header {
+
 			#transformations
 
 			#invocation
@@ -111,12 +117,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			#error_handling
 
 			#reverse_transformations
+
 		}
-	};
-
-
-	out.append_all(input);
-	out.append_all(header);
-	out.append_all(body);
-	Ok(out)
+	})
 }
