@@ -92,7 +92,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			Ok(fin) => fin,
 			Err(e) => {
 				// TODO should we panic instead?
-				let _ = #env_iden.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+				let _ = #env_iden.throw_new(e.jclass(), format!("{e:?}"));
 				#return_expr
 			}
 		}

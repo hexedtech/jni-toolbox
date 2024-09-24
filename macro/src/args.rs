@@ -106,7 +106,7 @@ impl ArgumentOptions {
 					Ok(x) => x,
 					Err(e) => {
 						// TODO should we panic here instead?
-						let _ = #env.throw_new("java/lang/RuntimeException", format!("{e:?}"));
+						let _ = #env.throw_new(e.jclass(), format!("{e:?}"));
 						return #ret_expr;
 					},
 				};
