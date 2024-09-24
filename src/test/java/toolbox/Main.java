@@ -2,6 +2,7 @@ package toolbox;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
@@ -14,6 +15,7 @@ public class Main {
 	static native String concat(String a, String b);
 	static native String[] to_vec(String a, String b, String c);
 	static native boolean maybe(String optional);
+	static native String optional(boolean present);
 	static native String raw();
 
 	@Test
@@ -29,9 +31,9 @@ public class Main {
 	@Test
 	public void checksForNull() {
 		// TODO maybe these should throw NullPtrException
-		assertThrows(RuntimeException.class, () -> Main.concat("a", null));
-		assertThrows(RuntimeException.class, () -> Main.concat(null, "a"));
-		assertThrows(RuntimeException.class, () -> Main.concat(null, null));
+		assertThrows(NullPointerException.class, () -> Main.concat("a", null));
+		assertThrows(NullPointerException.class, () -> Main.concat(null, "a"));
+		assertThrows(NullPointerException.class, () -> Main.concat(null, null));
 	}
 
 	@Test
@@ -52,6 +54,12 @@ public class Main {
 	@Test
 	public void passEnv() {
 		assertEquals(Main.raw(), "hello world!");
+	}
+
+	@Test
+	public void nullableReturn() {
+		assertNull(Main.optional(false));
+		assertEquals(Main.optional(true), "hello world!");
 	}
 	
 }

@@ -21,6 +21,15 @@ fn maybe(idk: Option<String>) -> bool {
 }
 
 #[jni(package = "toolbox", class = "Main")]
+fn optional(present: bool) -> Option<String> {
+	if present {
+		Some("hello world!".into())
+	} else {
+		None
+	}
+}
+
+#[jni(package = "toolbox", class = "Main")]
 fn raw<'local>(env: &mut jni::JNIEnv<'local>) -> Result<jni::objects::JString<'local>, jni::errors::Error> {
 	env.new_string("hello world!")
 }
