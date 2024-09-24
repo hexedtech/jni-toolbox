@@ -11,7 +11,14 @@ repositories {
 	mavenCentral()
 }
 
+task cargoBuild(type: Exec) {
+	workingDir '.'
+	commandLine 'cargo', 'build', '-p', 'jni-toolbox-test'
+}
+
 test {
+	dependsOn cargoBuild
+	outputs.upToDateWhen { false }
 	useJUnitPlatform()
 	systemProperty 'java.library.path','target/debug'
 }
