@@ -79,15 +79,15 @@ macro_rules! auto_into_java_object {
 }
 
 auto_into_java_object!(jni::objects::JString<'j>, "java/lang/String");
-//auto_into_java_object!(jni::objects::JObjectArray<'j>, "java/lang/Object[]");
-//auto_into_java_object!(jni::objects::JIntArray<'j>, "java/lang/Integer[]");
-//auto_into_java_object!(jni::objects::JLongArray<'j>, "java/lang/Long[]");
-//auto_into_java_object!(jni::objects::JShortArray<'j>, "java/lang/Short[]");
-//auto_into_java_object!(jni::objects::JByteArray<'j>, "java/lang/Byte[]");
-//auto_into_java_object!(jni::objects::JCharArray<'j>, "java/lang/Char[]");
-//auto_into_java_object!(jni::objects::JFloatArray<'j>, "java/lang/Float[]");
-//auto_into_java_object!(jni::objects::JDoubleArray<'j>, "java/lang/Double[]");
-//auto_into_java_object!(jni::objects::JBooleanArray<'j>, "java/lang/Boolean[]");
+auto_into_java_object!(jni::objects::JObjectArray<'j>, "java/lang/Object[]");
+auto_into_java_object!(jni::objects::JIntArray<'j>, "java/lang/Integer[]");
+auto_into_java_object!(jni::objects::JLongArray<'j>, "java/lang/Long[]");
+auto_into_java_object!(jni::objects::JShortArray<'j>, "java/lang/Short[]");
+auto_into_java_object!(jni::objects::JByteArray<'j>, "java/lang/Byte[]");
+auto_into_java_object!(jni::objects::JCharArray<'j>, "java/lang/Char[]");
+auto_into_java_object!(jni::objects::JFloatArray<'j>, "java/lang/Float[]");
+auto_into_java_object!(jni::objects::JDoubleArray<'j>, "java/lang/Double[]");
+auto_into_java_object!(jni::objects::JBooleanArray<'j>, "java/lang/Boolean[]");
 
 
 impl<'j> IntoJavaObject<'j> for &str {
@@ -123,6 +123,64 @@ impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Option<T> {
 			Some(x) => x.into_java_object(env),
 			None => Ok(JObject::null())
 		}
+	}
+}
+
+macro_rules! auto_into_java_object_primitive_array {
+	($t:ty, $fn_new:ident, $fn_set:ident, $clazz:literal) => {
+		impl<'j> IntoJavaObject<'j> for Vec<$t> {
+			const CLASS: &'static str = $clazz;
+			fn into_java_object(self, env: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error> {
+				let len = self.len()
+					.try_into()
+					.map_err(|_| jni::errors::Error::JniCall(jni::errors::JniError::InvalidArguments))?;
+				let mut array = env.$fn_new(len)?;
+				env.$fn_set(&mut array, 0, self.as_slice())?;
+				Ok(array.into())
+			}
+		}
+	};
+}
+
+auto_into_java_object_primitive_array!(i8, new_byte_array, set_byte_array_region, "java/lang/Byte[]");
+auto_into_java_object_primitive_array!(i16, new_short_array, set_short_array_region, "java/lang/Short[]");
+auto_into_java_object_primitive_array!(i32, new_int_array, set_int_array_region, "java/lang/Integer[]");
+auto_into_java_object_primitive_array!(i64, new_long_array, set_long_array_region, "java/lang/Long[]");
+auto_into_java_object_primitive_array!(f32, new_float_array, set_float_array_region, "java/lang/Float[]");
+auto_into_java_object_primitive_array!(f64, new_double_array, set_double_array_region, "java/lang/Double[]");
+
+impl<'j> IntoJavaObject<'j> for Vec<bool> {
+	const CLASS: &'static str = "java/lang/Boolean[]";
+
+	fn into_java_object(self, env: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error> {
+		let len = self.len()
+			.try_into()
+			.map_err(|_| jni::errors::Error::JniCall(jni::errors::JniError::InvalidArguments))?;
+		let mut array = env.new_boolean_array(len)?;
+		let new_self : Vec<u8> = self.into_iter().map(|x| if x { 1 } else { 0 }).collect();
+		env.set_boolean_array_region(&mut array, 0, new_self.as_slice())?;
+		Ok(array.into())
+	}
+}
+
+impl<'j> IntoJavaObject<'j> for Vec<char> {
+	const CLASS: &'static str = "java/lang/Char[]";
+
+	fn into_java_object(self, env: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error> {
+		let len = self.len()
+			.try_into()
+			.map_err(|_| jni::errors::Error::JniCall(jni::errors::JniError::InvalidArguments))?;
+		let mut array = env.new_char_array(len)?;
+		let mut new_self : Vec<u16> = Vec::new();
+		for c in self {
+			new_self.push(
+				c
+					.try_into()
+					.map_err(|_| jni::errors::Error::JniCall(jni::errors::JniError::InvalidArguments))?
+			);
+		}
+		env.set_char_array_region(&mut array, 0, new_self.as_slice())?;
+		Ok(array.into())
 	}
 }
 
