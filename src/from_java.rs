@@ -28,10 +28,10 @@ macro_rules! auto_from_java {
 	};
 }
 
-auto_from_java!(i64, jni::sys::jlong);
-auto_from_java!(i32, jni::sys::jint);
-auto_from_java!(i16, jni::sys::jshort);
 auto_from_java!(i8, jni::sys::jbyte);
+auto_from_java!(i16, jni::sys::jshort);
+auto_from_java!(i32, jni::sys::jint);
+auto_from_java!(i64, jni::sys::jlong);
 auto_from_java!(f32, jni::sys::jfloat);
 auto_from_java!(f64, jni::sys::jdouble);
 auto_from_java!(JObject<'j>, JObject<'j>);
@@ -61,7 +61,7 @@ impl<'j> FromJava<'j> for bool {
 
 	#[inline]
 	fn from_java(_: &mut jni::JNIEnv, value: Self::From) -> Result<Self, jni::errors::Error> {
-		Ok(value == 1)
+		Ok(value != 0)
 	}
 }
 
@@ -97,6 +97,55 @@ impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
 			out.push(T::from_java(env, el)?);
 		}
 		Ok(out)
+	}
+}
+
+macro_rules! auto_from_java_primitive_array {
+	($primitive:ty, $fn:ident) => {
+		impl<'j> FromJava<'j> for Vec<$primitive> {
+			type From = JPrimitiveArray<'j, $primitive>;
+		
+			fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+				let len = env.get_array_length(&value)?.max(0) as usize; // should be always safe but TODO
+				let mut out = vec![<$primitive>::default(); len];
+				env.$fn(value, 0, &mut out)?;
+				Ok(out)
+			}
+		}
+	};
+}
+
+auto_from_java_primitive_array!(i8, get_byte_array_region);
+auto_from_java_primitive_array!(i16, get_short_array_region);
+auto_from_java_primitive_array!(i32, get_int_array_region);
+auto_from_java_primitive_array!(i64, get_long_array_region);
+auto_from_java_primitive_array!(f32, get_float_array_region);
+auto_from_java_primitive_array!(f64, get_double_array_region);
+
+impl<'j> FromJava<'j> for Vec<bool> {
+	type From = JPrimitiveArray<'j, u8>;
+
+	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+		let len = env.get_array_length(&value)?.max(0) as usize; // should be always safe but TODO
+		let mut out = vec![<u8>::default(); len];
+		env.get_boolean_array_region(value, 0, &mut out)?;
+		Ok(out.into_iter().map(|x| x != 0).collect())
+	}
+}
+
+impl<'j> FromJava<'j> for Vec<char> {
+	type From = JPrimitiveArray<'j, u16>;
+
+	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+		let len = env.get_array_length(&value)?.max(0) as usize; // should be always safe but TODO
+		let mut out = vec![<u16>::default(); len];
+		env.get_char_array_region(value, 0, &mut out)?;
+		Ok(
+			out
+				.into_iter()
+				.map(|x| char::from_u32(x.into()).unwrap_or_default())
+				.collect()
+		)
 	}
 }
 
