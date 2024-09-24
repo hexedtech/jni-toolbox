@@ -56,6 +56,36 @@ pub trait IntoJavaObject<'j> {
 	fn into_java_object(self, env: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error>;
 }
 
+impl<'j> IntoJavaObject<'j> for JObject<'j> {
+	const CLASS: &'static str = "java/lang/Object";
+	fn into_java_object(self, _: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error> {
+		Ok(self)
+	}
+}
+
+macro_rules! auto_into_java_object {
+	($t:ty, $cls:literal) => {
+		impl<'j> IntoJavaObject<'j> for $t {
+			const CLASS: &'static str = $cls;
+			fn into_java_object(self, _: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error> {
+				Ok(self.into())
+			}
+		}
+	};
+}
+
+auto_into_java_object!(jni::objects::JString<'j>, "java/lang/String");
+//auto_into_java_object!(jni::objects::JObjectArray<'j>, "java/lang/Object[]");
+//auto_into_java_object!(jni::objects::JIntArray<'j>, "java/lang/Integer[]");
+//auto_into_java_object!(jni::objects::JLongArray<'j>, "java/lang/Long[]");
+//auto_into_java_object!(jni::objects::JShortArray<'j>, "java/lang/Short[]");
+//auto_into_java_object!(jni::objects::JByteArray<'j>, "java/lang/Byte[]");
+//auto_into_java_object!(jni::objects::JCharArray<'j>, "java/lang/Char[]");
+//auto_into_java_object!(jni::objects::JFloatArray<'j>, "java/lang/Float[]");
+//auto_into_java_object!(jni::objects::JDoubleArray<'j>, "java/lang/Double[]");
+//auto_into_java_object!(jni::objects::JBooleanArray<'j>, "java/lang/Boolean[]");
+
+
 impl<'j> IntoJavaObject<'j> for &str {
 	const CLASS: &'static str = "java/lang/String";
 	fn into_java_object(self, env: &mut jni::JNIEnv<'j>) -> Result<JObject<'j>, jni::errors::Error> {
