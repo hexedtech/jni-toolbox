@@ -66,18 +66,9 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			quote::quote! {
 				let ret = match result {
 					Ok(x) => x,
-					Err(e) => match #env_iden.find_class(e.jclass()) {
-						Err(e) => panic!("error throwing Java exception -- failed resolving error class: {e}"),
-						Ok(class) => match #env_iden.new_string(format!("{e:?}")) {
-							Err(e) => panic!("error throwing Java exception --  failed creating error string: {e}"),
-							Ok(msg) => match #env_iden.new_object(class, "(Ljava/lang/String;)V", &[jni::objects::JValueGen::Object(&msg)]) {
-								Err(e) => panic!("error throwing Java exception -- failed creating object: {e}"),
-								Ok(obj) => match #env_iden.throw(jni::objects::JThrowable::from(obj)) {
-									Err(e) => panic!("error throwing Java exception -- failed throwing: {e}"),
-									Ok(_) => return #return_expr,
-								},
-							},
-						},
+					Err(e) => match #env_iden.throw_new(e.jclass(), format!("{e:?}")) {
+						Err(e) => panic!("error throwing Java exception -- failed throwing: {e}"),
+						Ok(_) => return #return_expr
 					}
 				};
 			}

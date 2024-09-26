@@ -17,6 +17,7 @@ public class Main {
 	static native boolean maybe(String optional);
 	static native String optional(boolean present);
 	static native String raw();
+	static native void throw_error();
 
 	@Test
 	public void argumentsByValue() {
@@ -61,5 +62,9 @@ public class Main {
 		assertNull(Main.optional(false));
 		assertEquals(Main.optional(true), "hello world!");
 	}
-	
+
+	@Test
+	public void throwError() {
+		assertThrows(CustomException.class, Main::throw_error);
+	}
 }
