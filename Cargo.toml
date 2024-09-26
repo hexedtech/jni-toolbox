@@ -6,14 +6,15 @@ name = "jni-toolbox"
 description = "tools to make writing JNI native functions less tiresome"
 repository = "https://github.com/hexedtech/jni-toolbox"
 authors = [
-	"alemi <me@alemi.dev>"
+	"alemi <me@alemi.dev>",
+	"zaaarf <me@zaaarf.foo>"
 ]
 license = "GPL-3.0-only"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 
 [dependencies]
-jni-toolbox-macro = "0.2.0"
+jni-toolbox-macro = "0.2.1"
 jni = "0.21"
 uuid = { version = "1.10", optional = true }
 
