@@ -3,7 +3,8 @@ name = "jni-toolbox-macro"
 description = "proc macro to automate making JNI extern functions"
 repository = "https://github.com/hexedtech/jni-toolbox"
 authors = [
-	"alemi <me@alemi.dev>"
+	"alemi <me@alemi.dev>",
+	"zaaarf <me@zaaarf.foo>"
 ]
 license = "GPL-3.0-only"
 version = "0.2.1"

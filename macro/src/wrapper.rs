@@ -32,7 +32,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 	// V----------------------------------V
 	let header = quote::quote! {
 		#[no_mangle]
-		#[allow(unused_unit)]
+		#[allow(unused_unit, non_snake_case)]
 		pub extern "system" fn #fn_name<'local>(#incoming) #return_type
 	};
 
