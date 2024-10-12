@@ -2,6 +2,8 @@ use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
 use syn::{ReturnType, Type};
 
+use crate::ext::bare_type;
+
 #[derive(Clone)]
 pub(crate) struct ReturnOptions {
 	pub(crate) ty: Option<Box<Type>>,
@@ -16,8 +18,8 @@ impl ReturnOptions {
 	pub(crate) fn parse_signature(ret: &ReturnType) -> Result<Self, syn::Error> {
 		match ret {
 			syn::ReturnType::Default => Ok(Self { ty: None, result: false, void: true, pointer: false }),
-			syn::ReturnType::Type(_tok, ty) => match *ty.clone() {
-				syn::Type::Path(path) => {
+			syn::ReturnType::Type(_tok, ty) => match bare_type(ty.clone()) {
+				Some(path) => {
 					let Some(last) = path.path.segments.last() else {
 						return Err(syn::Error::new(Span::call_site(), "empty Result type is not valid"));
 					};
@@ -43,7 +45,7 @@ impl ReturnOptions {
 					let pointer = !PRIMITIVE_TYPES.iter().any(|t| last.ident == t);
 					Ok(Self { ty: Some(Box::new(Type::Path(path.clone()))), result: false, void: false, pointer })
 				},
-				_ => Err(syn::Error::new(Span::call_site(), "unsupported return type")),
+				None => Err(syn::Error::new(Span::call_site(), "unsupported return type")),
 			},
 		}
 	}

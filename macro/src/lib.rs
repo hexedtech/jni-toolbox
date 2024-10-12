@@ -2,6 +2,7 @@ mod attrs;
 mod wrapper;
 mod args;
 mod ret;
+mod ext;
 
 /// Wrap this function in in a JNI exported fn.
 #[proc_macro_attribute]
