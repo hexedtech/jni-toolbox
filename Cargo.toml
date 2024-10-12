@@ -10,11 +10,11 @@ authors = [
 	"zaaarf <me@zaaarf.foo>"
 ]
 license = "GPL-3.0-only"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 [dependencies]
-jni-toolbox-macro = "0.2.1"
+jni-toolbox-macro = "0.2.2"
 jni = "0.21"
 uuid = { version = "1.10", optional = true }
 
