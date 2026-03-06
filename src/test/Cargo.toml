@@ -11,5 +11,5 @@ path = "test.rs"
 [dependencies]
 jni-toolbox-macro = { path = "../../macro/" }
 jni-toolbox = { path = "../.." }
-jni = "0.21"
+jni = "0.22"
 thiserror = "1"

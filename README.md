@@ -24,7 +24,7 @@ received from Java must implement `FromJava`. Most primitives and a few common t
 ```rust
 impl<'j> IntoJavaObject for MyClass {
   type T = jni::objects::JObject<'j>
-  fn into_java(self, env: &mut jni::JNIEnv<'j>) -> Result<Self::T, jni::errors::Error> {
+  fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::T, jni::errors::Error> {
     let hello = env.new_string("world")?;
     // TODO!!
   }
@@ -79,7 +79,7 @@ fn connect(config: Config) -> Result<Client, ConnectionError> {
 #[no_mangle]
 #[allow(unused_unit)]
 pub extern "system" fn Java_mp_code_Client_connect<'local>(
-  mut env: jni::JNIEnv<'local>,
+  mut env: jni::Env<'local>,
   _class: jni::objects::JClass<'local>,
   config: <Config as jni_toolbox::FromJava<'local>>::From,
 ) -> <Client as jni_toolbox::IntoJava<'local>>::Ret {

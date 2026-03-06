@@ -30,7 +30,7 @@ fn optional(present: bool) -> Option<String> {
 }
 
 #[jni(package = "toolbox", class = "Main")]
-fn raw<'local>(env: &mut jni::JNIEnv<'local>) -> Result<jni::objects::JString<'local>, jni::errors::Error> {
+fn raw<'local>(env: &mut jni::Env<'local>) -> Result<jni::objects::JString<'local>, jni::errors::Error> {
 	env.new_string("hello world!")
 }
 

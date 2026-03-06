@@ -40,7 +40,7 @@ impl ArgumentOptions {
 				return Err(syn::Error::new(Span::call_site(), "#[jni] macro doesn't work on methods"));
 			};
 			let pat = unpack_pat(*ty.pat.clone())?;
-			if type_equals(ty.ty.clone(), "JNIEnv") { pass_env = true };
+			if type_equals(ty.ty.clone(), "Env") { pass_env = true };
 			if type_equals(ty.ty.clone(), "JClass") { pass_class = true };
 			arguments.push(SingleArgument {
 				pat: syn::Ident::new(&pat.to_string(), Span::call_site()),
@@ -71,7 +71,7 @@ impl ArgumentOptions {
 				forwarding.append_all(quote::quote!( &mut #pat,));
 			}
 		} else {
-			incoming.append_all(quote::quote!( mut #env: jni::JNIEnv<'local>,));
+			incoming.append_all(quote::quote!( mut #env: jni::Env<'local>,));
 		}
 
 		if !pass_class {

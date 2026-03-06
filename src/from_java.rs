@@ -3,7 +3,7 @@ use jni::objects::{JObject, JObjectArray, JPrimitiveArray, JString, TypeArray};
 
 /// Used in the generated code to have proper type bindings. You probably didn't want
 /// to call this directly.
-pub fn from_java_static<'j, T: FromJava<'j>>(env: &mut jni::JNIEnv<'j>, val: T::From) -> Result<T, jni::errors::Error> {
+pub fn from_java_static<'j, T: FromJava<'j>>(env: &mut jni::Env<'j>, val: T::From) -> Result<T, jni::errors::Error> {
 	T::from_java(env, val)
 }
 
@@ -12,7 +12,7 @@ pub trait FromJava<'j> : Sized {
 	/// The JNI type representing the input.
 	type From : Sized;
 	/// Attempts to convert this Java object into its Rust counterpart.
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error>;
+	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error>;
 }
 
 macro_rules! auto_from_java {
@@ -21,7 +21,7 @@ macro_rules! auto_from_java {
 			type From = $j;
 		
 			#[inline]
-			fn from_java(_: &mut jni::JNIEnv, value: Self::From) -> Result<Self, jni::errors::Error> {
+			fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
 				Ok(value)
 			}
 		}
@@ -42,7 +42,7 @@ impl<'j, T: TypeArray> FromJava<'j> for JPrimitiveArray<'j, T> {
 	type From = JPrimitiveArray<'j, T>;
 
 	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::From) -> Result<Self, jni::errors::Error> {
+	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
 		Ok(value)
 	}
 }
@@ -51,7 +51,7 @@ impl<'j> FromJava<'j> for char {
 	type From = jni::sys::jchar;
 
 	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::From) -> Result<Self, jni::errors::Error> {
+	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
 		char::from_u32(value.into()).ok_or_else(|| jni::errors::Error::WrongJValueType("char", "invalid u16"))
 	}
 }
@@ -60,17 +60,17 @@ impl<'j> FromJava<'j> for bool {
 	type From = jni::sys::jboolean;
 
 	#[inline]
-	fn from_java(_: &mut jni::JNIEnv, value: Self::From) -> Result<Self, jni::errors::Error> {
-		Ok(value != 0)
+	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
+		Ok(value)
 	}
 }
 
 impl<'j> FromJava<'j> for String {
 	type From = JString<'j>;
 
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+	fn from_java(_: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
 		if value.is_null() { return Err(jni::errors::Error::NullPtr("string can't be null")) };
-		Ok(env.get_string(&value)?.into())
+		Ok(value.to_string())
 	}
 }
 
@@ -80,7 +80,7 @@ where
 {
 	type From = T::From;
 
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
 		if value.as_ref().is_null() { return Ok(None) };
 		Ok(Some(T::from_java(env, value)?))
 	}
@@ -89,11 +89,11 @@ where
 impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
 	type From = JObjectArray<'j>;
 
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-		let len = env.get_array_length(&value)?;
+	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+		let len = value.len(env)?;
 		let mut out = Vec::new();
 		for i in 0..len {
-			let el = env.get_object_array_element(&value, i)?;
+			let el = value.get_element(env, i)?;
 			out.push(T::from_java(env, el)?);
 		}
 		Ok(out)
@@ -101,45 +101,35 @@ impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
 }
 
 macro_rules! auto_from_java_primitive_array {
-	($primitive:ty, $fn:ident) => {
+	($primitive:ty) => {
 		impl<'j> FromJava<'j> for Vec<$primitive> {
 			type From = JPrimitiveArray<'j, $primitive>;
 		
-			fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-				let len = env.get_array_length(&value)?.max(0) as usize; // should be always safe but TODO
+			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+				let len = value.len(env)?;
 				let mut out = vec![<$primitive>::default(); len];
-				env.$fn(value, 0, &mut out)?;
+				value.get_region(env, 0, &mut out)?;
 				Ok(out)
 			}
 		}
 	};
 }
 
-auto_from_java_primitive_array!(i8, get_byte_array_region);
-auto_from_java_primitive_array!(i16, get_short_array_region);
-auto_from_java_primitive_array!(i32, get_int_array_region);
-auto_from_java_primitive_array!(i64, get_long_array_region);
-auto_from_java_primitive_array!(f32, get_float_array_region);
-auto_from_java_primitive_array!(f64, get_double_array_region);
-
-impl<'j> FromJava<'j> for Vec<bool> {
-	type From = JPrimitiveArray<'j, u8>;
-
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-		let len = env.get_array_length(&value)?.max(0) as usize; // should be always safe but TODO
-		let mut out = vec![<u8>::default(); len];
-		env.get_boolean_array_region(value, 0, &mut out)?;
-		Ok(out.into_iter().map(|x| x != 0).collect())
-	}
-}
+auto_from_java_primitive_array!(i8);
+auto_from_java_primitive_array!(i16);
+auto_from_java_primitive_array!(i32);
+auto_from_java_primitive_array!(i64);
+auto_from_java_primitive_array!(f32);
+auto_from_java_primitive_array!(f64);
+auto_from_java_primitive_array!(bool);
 
 impl<'j> FromJava<'j> for Vec<char> {
 	type From = JPrimitiveArray<'j, u16>;
 
-	fn from_java(env: &mut jni::JNIEnv<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-		let len = env.get_array_length(&value)?.max(0) as usize; // should be always safe but TODO
+	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+		let len = value.len(env)?;
 		let mut out = vec![<u16>::default(); len];
-		env.get_char_array_region(value, 0, &mut out)?;
+		value.get_region(env, 0, &mut out)?;
 		Ok(
 			out
 				.into_iter()
@@ -152,15 +142,15 @@ impl<'j> FromJava<'j> for Vec<char> {
 #[cfg(feature = "uuid")]
 impl<'j> FromJava<'j> for uuid::Uuid {
 	type From = JObject<'j>;
-	fn from_java(env: &mut jni::JNIEnv<'j>, uuid: Self::From) -> Result<Self, jni::errors::Error> {
+	fn from_java(env: &mut jni::Env<'j>, uuid: Self::From) -> Result<Self, jni::errors::Error> {
 		let lsb = u64::from_ne_bytes(
-			env.call_method(&uuid, "getLeastSignificantBits", "()J", &[])?
+			env.call_method(&uuid, jni::jni_str!("getLeastSignificantBits"), jni::jni_sig!("()J"), &[])?
 				.j()?
 				.to_ne_bytes()
 		);
 
 		let msb = u64::from_ne_bytes(
-			env.call_method(&uuid, "getMostSignificantBits", "()J", &[])?
+			env.call_method(&uuid, jni::jni_str!("getMostSignificantBits"), jni::jni_sig!("()J"), &[])?
 				.j()?
 				.to_ne_bytes()
 		);
