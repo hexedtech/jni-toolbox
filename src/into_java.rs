@@ -1,4 +1,4 @@
-use jni::{objects::{JObject, JObjectArray}, refs::Reference};
+use jni::objects::{JObject, JObjectArray};
 
 
 /// Specifies how a Rust type should be converted into a Java primitive.
@@ -37,7 +37,7 @@ impl<'j> IntoJava<'j> for bool {
 
 	#[inline]
 	fn into_java(self, _: &mut jni::Env) -> Result<Self::Ret, jni::errors::Error> {
-		Ok(if self { true } else { false })
+		Ok(self)
 	}
 }
 
@@ -103,15 +103,15 @@ impl<'j> IntoJavaObject<'j> for String {
 	}
 }
 
-impl<'j, T: IntoJavaObject<'j> + Reference> IntoJavaObject<'j> for Vec<T> {
+impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<T> {
 	const CLASS: &'static str = T::CLASS;
 	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
-		let mut arr = JObjectArray::new(env, self.len(), JObject::null())?;
+		let arr: JObjectArray<'j, JObject<'j>> = JObjectArray::<JObject<'j>>::new(env, self.len(), JObject::null())?;
 		for (n, el) in self.into_iter().enumerate() {
 			let el = el.into_java_object(env)?;
 			arr.set_element(env, n, &el)?;
 		}
-		Ok(JObject::from_raw(env, arr.as_raw()))
+		Ok(JObject::from(arr))
 	}
 }
 
@@ -153,10 +153,7 @@ impl<'j> IntoJavaObject<'j> for Vec<char> {
 	const CLASS: &'static str = "java/lang/Character[]";
 
 	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
-		let len = self.len()
-			.try_into()
-			.map_err(|_| jni::errors::Error::JniCall(jni::errors::JniError::InvalidArguments))?;
-		let array = env.new_char_array(len)?;
+		let array = env.new_char_array(self.len())?;
 		let mut new_self : Vec<u16> = Vec::new();
 		for c in self {
 			new_self.push(
@@ -174,10 +171,11 @@ impl<'j> IntoJavaObject<'j> for Vec<char> {
 impl<'j> IntoJavaObject<'j> for uuid::Uuid {
 	const CLASS: &'static str = "java/util/UUID";
 	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
-		let class = env.find_class(Self::CLASS.into())?;
+		let class_name = jni::strings::JNIString::new(Self::CLASS);
+		let class = env.find_class(&class_name)?;
 		let (msb, lsb) = self.as_u64_pair();
 		let msb = i64::from_ne_bytes(msb.to_ne_bytes());
 		let lsb = i64::from_ne_bytes(lsb.to_ne_bytes());
-		env.new_object(&class, jni::jni_sig!("(JJ)V"), &[jni::objects::JValueGen::Long(msb), jni::objects::JValueGen::Long(lsb)])
+		env.new_object(&class, jni::jni_sig!("(JJ)V"), &[jni::JValue::Long(msb), jni::JValue::Long(lsb)])
 	}
 }
