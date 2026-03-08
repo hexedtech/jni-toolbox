@@ -10,14 +10,15 @@ pub(crate) struct ReturnOptions {
 	pub(crate) result: bool,
 	pub(crate) pointer: bool,
 	pub(crate) void: bool,
+	pub(crate) bool: bool,
 }
 
-const PRIMITIVE_TYPES: [&str; 7] = ["i8", "i16", "i32", "i64", "f32", "f64", "bool"];
+const PRIMITIVE_TYPES: [&str; 6] = ["i8", "i16", "i32", "i64", "f32", "f64"];
 
 impl ReturnOptions {
 	pub(crate) fn parse_signature(ret: &ReturnType) -> Result<Self, syn::Error> {
 		match ret {
-			syn::ReturnType::Default => Ok(Self { ty: None, result: false, void: true, pointer: false }),
+			syn::ReturnType::Default => Ok(Self { ty: None, result: false, void: true, pointer: false, bool: false }),
 			syn::ReturnType::Type(_tok, ty) => match bare_type(ty.clone()) {
 				Some(path) => {
 					let Some(last) = path.path.segments.last() else {
@@ -33,8 +34,9 @@ impl ReturnOptions {
 									syn::GenericArgument::Lifetime(_) => continue,
 									syn::GenericArgument::Type(ty) => {
 										// TODO checking by making ty a token stream and then string equals is not exactly great!
+										let bool = ty.to_token_stream().to_string() == "bool";
 										let pointer = !PRIMITIVE_TYPES.iter().any(|t| ty.to_token_stream().to_string() == *t);
-										return Ok(Self { ty: Some(Box::new(ty.clone())), result: true, void: is_void(ty), pointer });
+										return Ok(Self { ty: Some(Box::new(ty.clone())), result: true, void: is_void(ty), pointer, bool });
 									},
 									_ => return Err(syn::Error::new(Span::call_site(), "unexpected type in Result"))
 								}
@@ -42,8 +44,9 @@ impl ReturnOptions {
 						}
 					}
 
+					let bool = last.ident == "bool";
 					let pointer = !PRIMITIVE_TYPES.iter().any(|t| last.ident == t);
-					Ok(Self { ty: Some(Box::new(Type::Path(path.clone()))), result: false, void: false, pointer })
+					Ok(Self { ty: Some(Box::new(Type::Path(path.clone()))), result: false, void: false, pointer, bool })
 				},
 				None => Err(syn::Error::new(Span::call_site(), "unsupported return type")),
 			},

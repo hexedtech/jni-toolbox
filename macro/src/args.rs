@@ -87,7 +87,8 @@ impl ArgumentOptions {
 					Ok(x) => x,
 					Err(e) => {
 						// TODO should we panic here instead?
-						let _ = #env.throw_new(e.jclass(), format!("{e:?}"));
+						let msg = jni::strings::JNIString::new(format!("{e:?}"));
+						let _ = #env.throw_new(e.jclass(), &msg);
 						return #ret_expr;
 					},
 				};

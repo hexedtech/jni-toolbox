@@ -34,6 +34,7 @@ auto_from_java!(i32, jni::sys::jint);
 auto_from_java!(i64, jni::sys::jlong);
 auto_from_java!(f32, jni::sys::jfloat);
 auto_from_java!(f64, jni::sys::jdouble);
+auto_from_java!(bool, jni::sys::jboolean);
 auto_from_java!(JObject<'j>, JObject<'j>);
 auto_from_java!(JString<'j>, JString<'j>);
 auto_from_java!(JObjectArray<'j>, JObjectArray<'j>);
@@ -53,15 +54,6 @@ impl<'j> FromJava<'j> for char {
 	#[inline]
 	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
 		char::from_u32(value.into()).ok_or_else(|| jni::errors::Error::WrongJValueType("char", "invalid u16"))
-	}
-}
-
-impl<'j> FromJava<'j> for bool {
-	type From = jni::sys::jboolean;
-
-	#[inline]
-	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
-		Ok(value)
 	}
 }
 

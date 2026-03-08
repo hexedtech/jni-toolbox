@@ -12,6 +12,8 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 	let ret = ReturnOptions::parse_signature(&fn_item.sig.output)?;
 	let return_expr = if ret.void {
 		quote::quote!( () )
+	} else if ret.bool {
+		quote::quote!( false )
 	} else if ret.pointer {
 		quote::quote!( std::ptr::null_mut() )
 	} else {
@@ -56,7 +58,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			quote::quote! {
 				let ret = match result {
 					Ok(x) => x,
-					Err(e) => match #env_iden.throw_new(#exception, format!("{e:?}")) {
+					Err(e) => match #env_iden.throw_new(jni::strings::JNIString::new(#exception), jni::strings::JNIString::new(format!("{e:?}"))) {
 						Ok(_) => return #return_expr,
 						Err(e) => panic!("error throwing java exception: {e}"),
 					}
@@ -66,7 +68,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			quote::quote! {
 				let ret = match result {
 					Ok(x) => x,
-					Err(e) => match #env_iden.throw_new(e.jclass(), format!("{e:?}")) {
+					Err(e) => match #env_iden.throw_new(e.jclass(), jni::strings::JNIString::new(format!("{e:?}"))) {
 						Err(e) => panic!("error throwing Java exception -- failed throwing: {e}"),
 						Ok(_) => return #return_expr
 					}
@@ -83,7 +85,8 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 			Ok(fin) => fin,
 			Err(e) => {
 				// TODO should we panic instead?
-				let _ = #env_iden.throw_new(e.jclass(), format!("{e:?}"));
+				let msg = jni::strings::JNIString::new(format!("{e:?}"));
+				let _ = #env_iden.throw_new(e.jclass(), &msg);
 				#return_expr
 			}
 		}

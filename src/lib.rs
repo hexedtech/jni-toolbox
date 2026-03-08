@@ -9,14 +9,14 @@ pub use from_java::{FromJava, from_java_static};
 /// An error that is meant to be used with jni-toolbox.
 pub trait JniToolboxError: std::error::Error {
 	/// The Java class for the matching exception.
-	fn jclass(&self) -> String;
+	fn jclass(&self) -> jni::strings::JNIString;
 }
 
 impl JniToolboxError for jni::errors::Error {
-	fn jclass(&self) -> String {
+	fn jclass(&self) -> jni::strings::JNIString {
 		match self {
-			jni::errors::Error::NullPtr(_) => "java/lang/NullPointerException",
-			_ => "java/lang/RuntimeException",
+			jni::errors::Error::NullPtr(_) => jni::strings::JNIString::new("java/lang/NullPointerException"),
+			_ => jni::strings::JNIString::new("java/lang/RuntimeException"),
 			// jni::errors::Error::WrongJValueType(_, _) => todo!(),
 			// jni::errors::Error::InvalidCtorReturn => todo!(),
 			// jni::errors::Error::InvalidArgList(_) => todo!(),
@@ -32,14 +32,13 @@ impl JniToolboxError for jni::errors::Error {
 			// jni::errors::Error::ParseFailed(_, _) => todo!(),
 			// jni::errors::Error::JniCall(_) => todo!(),
 		}
-			.to_string()
 	}
 }
 
 impl JniToolboxError for jni::errors::JniError {
-	fn jclass(&self) -> String {
+	fn jclass(&self) -> jni::strings::JNIString {
 		match self {
-			_ => "java/lang/RuntimeException",
+			_ => jni::strings::JNIString::new("java/lang/RuntimeException"),
 			// jni::errors::JniError::Unknown => todo!(),
 			// jni::errors::JniError::ThreadDetached => todo!(),
 			// jni::errors::JniError::WrongVersion => todo!(),
@@ -48,6 +47,5 @@ impl JniToolboxError for jni::errors::JniError {
 			// jni::errors::JniError::InvalidArguments => todo!(),
 			// jni::errors::JniError::Other(_) => todo!(),
 		}
-			.to_string()
 	}
 }

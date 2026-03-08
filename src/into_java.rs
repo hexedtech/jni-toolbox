@@ -30,16 +30,8 @@ auto_into_java!(i16, jni::sys::jshort);
 auto_into_java!(i8, jni::sys::jbyte);
 auto_into_java!(f32, jni::sys::jfloat);
 auto_into_java!(f64, jni::sys::jdouble);
+auto_into_java!(bool, jni::sys::jboolean);
 auto_into_java!((), ());
-
-impl<'j> IntoJava<'j> for bool {
-	type Ret = jni::sys::jboolean;
-
-	#[inline]
-	fn into_java(self, _: &mut jni::Env) -> Result<Self::Ret, jni::errors::Error> {
-		Ok(self)
-	}
-}
 
 impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
 	type Ret = jni::sys::jobject;
