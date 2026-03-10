@@ -217,4 +217,8 @@ impl<'j> FromJava<'j> for uuid::Uuid {
 		
 		Ok(uuid::Uuid::from_u64_pair(msb, lsb))
 	}
+
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		Self::from_java(env, value.l()?)
+	}
 }
