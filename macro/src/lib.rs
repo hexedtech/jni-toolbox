@@ -16,7 +16,7 @@ pub fn jni(
 		.into()
 }
 
-/// Implement IntoJavaObject and FromJavaObject for this struct
+/// Implement IntoJavaObject and FromJava for this struct
 #[proc_macro_attribute]
 pub fn jclass(
 	attrs: proc_macro::TokenStream,

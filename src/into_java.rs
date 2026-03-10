@@ -3,12 +3,13 @@ use jni::objects::{JObject, JObjectArray};
 
 /// Specifies how a Rust type should be converted into a Java primitive.
 pub trait IntoJava<'j> {
-	/// The JNI type representing the output.
 	type Ret;
 	/// Attempts to convert this Rust object into a Java primitive.
 	fn into_java(self, e: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error>;
 	/// Attempts to convert this Rust object into a JValue (used in constructors)
 	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error>;
+	/// The JNI type representing the output.
+	fn signature() -> String;
 }
 
 impl<'j> IntoJava<'j> for () {
@@ -22,10 +23,12 @@ impl<'j> IntoJava<'j> for () {
 	fn into_jvalue(self, _: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
 		Ok(jni::JValueOwned::Void)
 	}
+
+	fn signature() -> String { "V".into() }
 }
 
 macro_rules! auto_into_java {
-	($t: ty, $j: ty, $jvalue:expr) => {
+	($t: ty, $sig:literal, $j:ty, $jvalue:expr) => {
 		impl<'j> IntoJava<'j> for $t {
 			type Ret = $j;
 		
@@ -37,21 +40,25 @@ macro_rules! auto_into_java {
 			fn into_jvalue(self, _: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
 				Ok($jvalue(self))
 			}
+			fn signature() -> String { $sig.into() }
 		}
 	};
 }
 
 // TODO: primitive arrays!
 
-auto_into_java!(i64, jni::sys::jlong, jni::JValueOwned::Long);
-auto_into_java!(i32, jni::sys::jint, jni::JValueOwned::Int);
-auto_into_java!(i16, jni::sys::jshort, jni::JValueOwned::Short);
-auto_into_java!(i8, jni::sys::jbyte, jni::JValueOwned::Byte);
-auto_into_java!(f32, jni::sys::jfloat, jni::JValueOwned::Float);
-auto_into_java!(f64, jni::sys::jdouble, jni::JValueOwned::Double);
-auto_into_java!(bool, jni::sys::jboolean, jni::JValueOwned::Bool);
+auto_into_java!(i64, "L", jni::sys::jlong, jni::JValueOwned::Long);
+auto_into_java!(i32, "I", jni::sys::jint, jni::JValueOwned::Int);
+auto_into_java!(i16, "S", jni::sys::jshort, jni::JValueOwned::Short);
+auto_into_java!(i8, "B", jni::sys::jbyte, jni::JValueOwned::Byte);
+auto_into_java!(f32, "F", jni::sys::jfloat, jni::JValueOwned::Float);
+auto_into_java!(f64, "D", jni::sys::jdouble, jni::JValueOwned::Double);
+auto_into_java!(bool, "Z", jni::sys::jboolean, jni::JValueOwned::Bool);
 
 impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
+	fn signature() -> String {
+		format!("L{};", Self::CLASS)
+	}
 	type Ret = jni::sys::jobject;
 
 	#[inline]
@@ -74,6 +81,7 @@ pub trait IntoJavaObject<'j> {
 
 impl<'j> IntoJavaObject<'j> for JObject<'j> {
 	const CLASS: &'static str = "java/lang/Object";
+
 	#[inline]
 	fn into_java_object(self, _: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
 		Ok(self)
