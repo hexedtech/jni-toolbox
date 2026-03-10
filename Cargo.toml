@@ -14,7 +14,7 @@ version = "0.2.2"
 edition = "2021"
 
 [dependencies]
-jni-toolbox-macro = "0.2.2"
+jni-toolbox-macro = { version = "0.2.2", path = "macro" }
 jni = "0.22"
 uuid = { version = "1.10", optional = true }
 

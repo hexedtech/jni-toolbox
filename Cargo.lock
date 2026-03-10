@@ -78,7 +78,7 @@ name = "jni-toolbox"
 version = "0.2.2"
 dependencies = [
  "jni",
- "jni-toolbox-macro 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jni-toolbox-macro",
  "uuid",
 ]
 
@@ -92,23 +92,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "jni-toolbox-macro"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "609491ce00edcf12946945a514d033bf6e8bfbab02c6a25a46ed8cd4749707da"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "jni-toolbox-test"
 version = "0.1.0"
 dependencies = [
  "jni",
  "jni-toolbox",
- "jni-toolbox-macro 0.2.2",
+ "jni-toolbox-macro",
  "thiserror 1.0.63",
 ]
 
