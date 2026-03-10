@@ -38,12 +38,9 @@ fn raw<'local>(env: &mut jni::Env<'local>) -> Result<jni::objects::JString<'loca
 #[error("some test error")]
 struct CustomError(i32);
 
-impl From<CustomError> for jni_toolbox::Error {
-	fn from(value: CustomError) -> Self {
-		Self {
-			clazz: "java/lang/Exception",
-			message: Some(format!("this is a custom error: {value:?}")),
-		}
+impl jni_toolbox::IntoException  for CustomError {
+	fn jclass(&self) -> &'static str {
+		"java/lang/Exception"
 	}
 }
 

@@ -1,20 +1,40 @@
 
-/// An error which can be auto-thrown by jni_toolbox
-/// all your custom errors must implement Into<JniToolboxError>
-/// to be auto-throwable. an exception class must be specified in
-/// clazz, and an optional message can be provided
-#[derive(thiserror::Error, Debug)]
-#[error("{message:?} ({clazz})")]
-pub struct JniToolboxError {
-	/// an optional message to be thrown with this exception
-	pub message: Option<String>,
+/// A trait to automatically convert errors in java exceptions
+/// implementing this trait on your error struct/enum allows
+/// jni-toolbox to automatically throw requested exceptions
+/// when this error is encountered
+pub trait IntoException: std::error::Error {
 	/// the exception class to be constructed and thrown
+	fn jclass(&self) -> &'static str;
+
+	/// returns an exception message based on Display and Debug (concatenated)
+	/// override to set custom exception messages
+	fn message(&self) -> String {
+		format!("{self} -- {self:?}")
+	}
+}
+
+/// An error which can be auto-thrown by jni_toolbox
+#[derive(Debug, thiserror::Error)]
+#[error("{message} ({clazz})")]
+pub struct JniToolboxError {
+	pub message: String,
 	pub clazz: &'static str,
 }
 
+impl<T: IntoException> From<T> for JniToolboxError {
+	fn from(value: T) -> Self {
+		Self {
+			clazz: value.jclass(),
+			message: value.message(),
+		}
+	}
+}
+
+
 /// The default error policy for **JNI Toolbox**
 /// this policy only applies to functions returning [`JniToolboxError`] errors, or anything 
-/// that can be converted into it (`impl Into<JniToolboxError>`)
+/// that can be converted into it (implementing [`IntoException`] )
 /// in case of error, it will throw a new exception of given class, with given message.
 /// class and message are provided by the resulting [`JniToolboxError`]
 /// note that all [`jni::errors::Error`] are mapped to [`JniToolboxError`]s
@@ -28,14 +48,10 @@ impl<T: Default> jni::errors::ErrorPolicy<T, JniToolboxError> for JniToolboxErro
 		_cap: &mut Self::Captures<'unowned_env_local, 'native_method>,
 		err: JniToolboxError,
 	) -> jni::errors::Result<T> {
-		if let Some(msg) = err.message {
-			let _ = env.throw_new(
-				jni::strings::JNIString::new(err.clazz),
-				jni::strings::JNIString::new(msg),
-			);
-		} else {
-			let _ = env.throw_new_void(jni::strings::JNIString::new(err.clazz));
-		};
+		let _ = env.throw_new(
+			jni::strings::JNIString::new(err.clazz),
+			jni::strings::JNIString::new(err.message),
+		);
 		Ok(T::default())
 	}
 
@@ -49,10 +65,9 @@ impl<T: Default> jni::errors::ErrorPolicy<T, JniToolboxError> for JniToolboxErro
 	}
 }
 
-impl From<jni::errors::Error> for JniToolboxError {
-	fn from(value: jni::errors::Error) -> Self {
-		let message = Some(format!("{value} -- {value:?}"));
-		let clazz = match value {
+impl IntoException for jni::errors::Error {
+	fn jclass(&self) -> &'static str {
+		match self {
 			jni::errors::Error::NullPtr(_) => "java/lang/NullPointerException",
 
 			// TODO do we really care about mapping all these?
@@ -90,8 +105,6 @@ impl From<jni::errors::Error> for JniToolboxError {
 			// jni::errors::Error::SecurityViolation => todo!(),
 
 			_ => "java/lang/RuntimeException",
-		};
-
-		Self { message, clazz }
+		}
 	}
 }
