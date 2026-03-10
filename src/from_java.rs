@@ -116,7 +116,8 @@ impl<'j> FromJava<'j> for String {
 	}
 
 	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-		Ok(JString::cast_local(env, value.l()?)?.to_string())
+		let jstr = JString::cast_local(env, value.l()?)?; 
+		Self::from_java(env, jstr)
 	}
 }
 
@@ -139,7 +140,7 @@ where
 	}
 }
 
-impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
+impl<'j, T: FromJava<'j, From = JObject<'j>> + jni::refs::Reference> FromJava<'j> for Vec<T> {
 	type From = JObjectArray<'j>;
 
 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
@@ -153,6 +154,8 @@ impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
 	}
 
 	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		// let jarr: JObjectArray<JObject> = JObjectArray::cast_local(env, value.l()?)?;
+		// Self::from_java(env, jarr)
 		todo!()
 	}
 }

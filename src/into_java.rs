@@ -1,19 +1,23 @@
-use jni::objects::{JObject, JObjectArray};
+use jni::{objects::{JObject, JObjectArray}, signature::{JavaType, Primitive}};
 
 
 /// Specifies how a Rust type should be converted into a Java primitive.
 pub trait IntoJava<'j> {
 	type Ret;
+	/// The JNI type representing the output.
+	fn signature() -> (String, JavaType);
 	/// Attempts to convert this Rust object into a Java primitive.
 	fn into_java(self, e: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error>;
 	/// Attempts to convert this Rust object into a JValue (used in constructors)
 	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error>;
-	/// The JNI type representing the output.
-	fn signature() -> String;
 }
 
 impl<'j> IntoJava<'j> for () {
 	type Ret = ();
+
+	fn signature() -> (String, JavaType) {
+		("V".into(), JavaType::Primitive(Primitive::Void))
+	}
 
 	#[inline]
 	fn into_java(self, _: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
@@ -23,14 +27,16 @@ impl<'j> IntoJava<'j> for () {
 	fn into_jvalue(self, _: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
 		Ok(jni::JValueOwned::Void)
 	}
-
-	fn signature() -> String { "V".into() }
 }
 
 macro_rules! auto_into_java {
-	($t: ty, $sig:literal, $j:ty, $jvalue:expr) => {
+	($t: ty, $sig:literal, $j:ty, $jt:expr, $jvalue:expr) => {
 		impl<'j> IntoJava<'j> for $t {
 			type Ret = $j;
+
+			fn signature() -> (String, JavaType) {
+				($sig.into(), $jt)
+			}
 		
 			#[inline]
 			fn into_java(self, _: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
@@ -40,26 +46,26 @@ macro_rules! auto_into_java {
 			fn into_jvalue(self, _: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
 				Ok($jvalue(self))
 			}
-			fn signature() -> String { $sig.into() }
 		}
 	};
 }
 
-// TODO: primitive arrays!
-
-auto_into_java!(i64, "L", jni::sys::jlong, jni::JValueOwned::Long);
-auto_into_java!(i32, "I", jni::sys::jint, jni::JValueOwned::Int);
-auto_into_java!(i16, "S", jni::sys::jshort, jni::JValueOwned::Short);
-auto_into_java!(i8, "B", jni::sys::jbyte, jni::JValueOwned::Byte);
-auto_into_java!(f32, "F", jni::sys::jfloat, jni::JValueOwned::Float);
-auto_into_java!(f64, "D", jni::sys::jdouble, jni::JValueOwned::Double);
-auto_into_java!(bool, "Z", jni::sys::jboolean, jni::JValueOwned::Bool);
+auto_into_java!(i64, "L", jni::sys::jlong, JavaType::Primitive(Primitive::Long), jni::JValueOwned::Long);
+auto_into_java!(i32, "I", jni::sys::jint, JavaType::Primitive(Primitive::Int), jni::JValueOwned::Int);
+auto_into_java!(i16, "S", jni::sys::jshort, JavaType::Primitive(Primitive::Short), jni::JValueOwned::Short);
+auto_into_java!(i8, "B", jni::sys::jbyte, JavaType::Primitive(Primitive::Byte), jni::JValueOwned::Byte);
+auto_into_java!(f32, "F", jni::sys::jfloat, JavaType::Primitive(Primitive::Float), jni::JValueOwned::Float);
+auto_into_java!(f64, "D", jni::sys::jdouble, JavaType::Primitive(Primitive::Double), jni::JValueOwned::Double);
+auto_into_java!(bool, "Z", jni::sys::jboolean, JavaType::Primitive(Primitive::Boolean), jni::JValueOwned::Bool);
 
 impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
-	fn signature() -> String {
-		format!("L{};", Self::CLASS)
-	}
 	type Ret = jni::sys::jobject;
+
+	fn signature() -> (String, JavaType) {
+		// TODO very cheap hack....
+		let jt = if Self::CLASS.ends_with("[]") { JavaType::Array } else { JavaType::Object };
+		(format!("L{};", Self::CLASS), jt)
+	}
 
 	#[inline]
 	fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {

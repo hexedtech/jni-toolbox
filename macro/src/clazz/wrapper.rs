@@ -10,21 +10,36 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 
 	let mut builder_fields = TokenStream::new();
 	let mut getter_fields = TokenStream::new();
-	let mut constructor_fields = TokenStream::new();
 	let mut constructor_args = TokenStream::new();
 	let mut transformations = TokenStream::new();
+	let mut constructor_str= TokenStream::new();
+	let mut constructor_types = TokenStream::new();
 
-	for (_i, f) in s.fields.iter().enumerate() {
+	for f in s.fields.iter() {
 		if let Some(name) = f.ident.clone() {
 			let name_str = stringify!(name);
 			let ty = f.ty.clone();
-			let sig = super::maps::sig(ty.clone());
+
+			constructor_str.append_all(quote::quote! (
+				<#ty as IntoJava>::signature().0.as_str() +
+			));
+			constructor_types.append_all(quote::quote!(
+				<#ty as IntoJava>::signature().1,
+			));
 
 			builder_fields.append_all(quote::quote!( #name, ));
 
 			getter_fields.append_all(quote::quote!(
 				let #name = {
-					let ___field = env.get_field(&object, jni::jni_str!(#name_str), jni::jni_sig!(#sig))?;
+					let (sig, ty) = <#ty as IntoJava>::signature();
+					let sig_jni = jni::strings::JNIString::new(sig);
+					let ___sig = unsafe {
+						jni::signature::FieldSignature::from_raw_parts(
+							sig_jni.borrowed(),
+							ty,
+						)
+					};
+					let ___field = env.get_field(&object, jni::jni_str!(#name_str), ___sig)?;
 					#ty::from_jvalue(env, ___field)?
 				};
 			));
@@ -33,8 +48,6 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 				let #name = self.#name.into_jvalue(env)?;
 			));
 
-			constructor_fields.append_all(quote::quote!( arg : #sig,));
-
 			constructor_args.append_all(quote::quote!( #name.borrow(), ));
 		}
 	}
@@ -42,8 +55,8 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 	let builder = quote::quote!(
 		Ok(Self { #builder_fields })
 	);
-	let constructor = quote::quote! (
-		( #constructor_fields ) -> ()
+	let constructor_str_concat = quote::quote! (
+		String::new() + #constructor_str ""
 	);
 
 	let struct_type = s.ident;
@@ -58,14 +71,26 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 				self,
 				env: &mut jni::Env<'local>,
 			) -> Result<jni::objects::JObject<'local>, jni::errors::Error> {
-				use jni_toolbox::IntoJava;
+				use jni_toolbox::{IntoJava, FromJava};
 				let ___clazz = env.find_class(jni::strings::JNIString::new(Self::CLASS))?;
 
 				#transformations;
 
+				let ___sig_jni = jni::strings::JNIString::new(#constructor_str_concat);
+				let ___sig_tys = [
+					#constructor_types
+				];
+				let ___ctor_sig = unsafe {
+					jni::signature::MethodSignature::from_raw_parts(
+						___sig_jni.borrowed(),
+						&___sig_tys,
+						jni::signature::JavaType::Primitive(jni::signature::Primitive::Void),
+					)
+				};
+
 				env.new_object(
 					___clazz,
-					jni::jni_sig!(#constructor),
+					___ctor_sig,
 					&[
 						#constructor_args
 					],
@@ -79,7 +104,7 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 				env: &mut jni::Env<'local>,
 				object: Self::From,
 			) -> Result<Self, jni::errors::Error> {
-				use jni_toolbox::FromJava;
+				use jni_toolbox::{IntoJava, FromJava};
 
 				#getter_fields
 
