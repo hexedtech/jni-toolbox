@@ -87,6 +87,19 @@ auto_from_java!(f32, jni::sys::jfloat, f);
 auto_from_java!(f64, jni::sys::jdouble, d);
 auto_from_java!(bool, jni::sys::jboolean, z);
 
+impl<'j> FromJava<'j> for u8 {
+	type From = jni::sys::jbyte;
+
+	#[inline]
+	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
+		Ok(value as u8)
+	}
+
+	fn from_jvalue(_: &mut jni::Env, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		Ok(value.b()? as u8)
+	}
+}
+
 impl<'j, T: TypeArray> FromJava<'j> for JPrimitiveArray<'j, T> {
 	type From = JPrimitiveArray<'j, T>;
 
@@ -95,7 +108,7 @@ impl<'j, T: TypeArray> FromJava<'j> for JPrimitiveArray<'j, T> {
 		Ok(value)
 	}
 
-	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+	fn from_jvalue(_env: &mut jni::Env<'j>, _value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
 		todo!()
 	}
 }
@@ -108,7 +121,7 @@ impl<'j> FromJava<'j> for char {
 		char::from_u32(value.into()).ok_or_else(|| jni::errors::Error::WrongJValueType("char", "invalid u16"))
 	}
 
-	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+	fn from_jvalue(_: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
 		value.c_char()
 	}
 }
@@ -191,6 +204,22 @@ auto_from_java_primitive_array!(i64);
 auto_from_java_primitive_array!(f32);
 auto_from_java_primitive_array!(f64);
 auto_from_java_primitive_array!(bool);
+
+impl<'j> FromJava<'j> for Vec<u8> {
+	type From = JPrimitiveArray<'j, i8>;
+
+	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+		let len = value.len(env)?;
+		let mut out = vec![<i8>::default(); len];
+		value.get_region(env, 0, &mut out)?;
+		Ok(out.into_iter().map(|x| x as u8).collect())
+	}
+
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		let jarr: JPrimitiveArray<'j, i8> = env.cast_local::<JPrimitiveArray<i8>>(value.l()?)?;
+		Self::from_java(env, jarr)
+	}
+}
 
 impl<'j> FromJava<'j> for Vec<char> {
 	type From = JPrimitiveArray<'j, u16>;

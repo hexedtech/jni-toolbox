@@ -158,10 +158,7 @@ macro_rules! auto_into_java_object_primitive_array {
 		impl<'j> IntoJavaObject<'j> for Vec<$t> {
 			const CLASS: &'static str = $clazz;
 			fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
-				let len = self.len()
-					.try_into()
-					.map_err(|_| jni::errors::Error::JniCall(jni::errors::JniError::InvalidArguments))?;
-				let array = env.$fn_new(len)?;
+				let array = env.$fn_new(self.len())?;
 				array.set_region(env, 0, self.as_slice())?;
 				Ok(array.into())
 			}
@@ -176,6 +173,16 @@ auto_into_java_object_primitive_array!(i64, new_long_array, "java/lang/Long[]");
 auto_into_java_object_primitive_array!(f32, new_float_array, "java/lang/Float[]");
 auto_into_java_object_primitive_array!(f64, new_double_array, "java/lang/Double[]");
 auto_into_java_object_primitive_array!(bool, new_boolean_array, "java/lang/Boolean[]");
+
+impl<'j> IntoJavaObject<'j> for Vec<u8> {
+	const CLASS: &'static str = "java/lang/Byte[]";
+	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
+		let array = env.new_byte_array(self.len())?;
+		let transmuted = self.into_iter().map(|x| x as i8).collect::<Vec<i8>>();
+		array.set_region(env, 0, transmuted.as_slice())?;
+		Ok(array.into())
+	}
+}
 
 impl<'j> IntoJavaObject<'j> for Vec<char> {
 	const CLASS: &'static str = "java/lang/Character[]";
