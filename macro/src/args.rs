@@ -66,12 +66,12 @@ impl ArgumentOptions {
 		if pass_env {
 			if let Some(arg) = args_iter.next() {
 				let pat = arg.pat;
-				let ty = bare_type(arg.ty);
-				incoming.append_all(quote::quote!( mut #pat: #ty,));
+				// let ty = bare_type(arg.ty);
+				incoming.append_all(quote::quote!( mut #pat: jni::EnvUnowned<'local>,));
 				forwarding.append_all(quote::quote!( &mut #pat,));
 			}
 		} else {
-			incoming.append_all(quote::quote!( mut #env: jni::Env<'local>,));
+			incoming.append_all(quote::quote!( mut #env: jni::EnvUnowned<'local>,));
 		}
 
 		if !pass_class {
@@ -83,15 +83,7 @@ impl ArgumentOptions {
 			let new_pat = syn::Ident::new(&format!("{pat}_new"), Span::call_site());
 			let ty = arg.ty;
 			transforming.append_all(quote::quote!{
-				let #new_pat = match jni_toolbox::from_java_static::<#ty>(&mut #env, #pat) {
-					Ok(x) => x,
-					Err(e) => {
-						// TODO should we panic here instead?
-						let msg = jni::strings::JNIString::new(format!("{e:?}"));
-						let _ = #env.throw_new(e.jclass(), &msg);
-						return #ret_expr;
-					},
-				};
+				let #new_pat = jni_toolbox::from_java_static::<#ty>(&mut #env, #pat)?;
 			});
 			incoming.append_all(quote::quote!( #pat: <#ty as jni_toolbox::FromJava<'local>>::From,));
 			forwarding.append_all(quote::quote!( #new_pat,));
