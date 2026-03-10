@@ -121,7 +121,6 @@ impl<'j> FromJava<'j> for String {
 	}
 }
 
-// TODO do we need Option<T> for primitives?
 impl<'j, T> FromJava<'j> for Option<T>
 where
 	T: FromJava<'j, From: AsRef<JObject<'j>>>,
@@ -154,50 +153,59 @@ impl<'j, T: FromJava<'j, From = JObject<'j>> + jni::refs::Reference> FromJava<'j
 	}
 
 	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-		// let jarr: JObjectArray<JObject> = JObjectArray::cast_local(env, value.l()?)?;
-		// Self::from_java(env, jarr)
-		todo!()
+		let jarr: JObjectArray<'j, JObject<'j>> = env.cast_local::<JObjectArray>(value.l()?)?;
+		Self::from_java(env, jarr)
 	}
 }
 
-// macro_rules! auto_from_java_primitive_array {
-// 	($primitive:ty) => {
-// 		impl<'j> FromJava<'j> for Vec<$primitive> {
-// 			type From = JPrimitiveArray<'j, $primitive>;
-// 		
-// 			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-// 				let len = value.len(env)?;
-// 				let mut out = vec![<$primitive>::default(); len];
-// 				value.get_region(env, 0, &mut out)?;
-// 				Ok(out)
-// 			}
-// 		}
-// 	};
-// }
-// 
-// auto_from_java_primitive_array!(i8);
-// auto_from_java_primitive_array!(i16);
-// auto_from_java_primitive_array!(i32);
-// auto_from_java_primitive_array!(i64);
-// auto_from_java_primitive_array!(f32);
-// auto_from_java_primitive_array!(f64);
-// auto_from_java_primitive_array!(bool);
+macro_rules! auto_from_java_primitive_array {
+	($primitive:ty) => {
+		impl<'j> FromJava<'j> for Vec<$primitive> {
+			type From = JPrimitiveArray<'j, $primitive>;
+		
+			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+				let len = value.len(env)?;
+				let mut out = vec![<$primitive>::default(); len];
+				value.get_region(env, 0, &mut out)?;
+				Ok(out)
+			}
 
-// impl<'j> FromJava<'j> for Vec<char> {
-// 	type From = JPrimitiveArray<'j, u16>;
-// 
-// 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-// 		let len = value.len(env)?;
-// 		let mut out = vec![<u16>::default(); len];
-// 		value.get_region(env, 0, &mut out)?;
-// 		Ok(
-// 			out
-// 				.into_iter()
-// 				.map(|x| char::from_u32(x.into()).unwrap_or_default())
-// 				.collect()
-// 		)
-// 	}
-// }
+			fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+				let jarr: JPrimitiveArray<'j, $primitive> = env.cast_local::<JPrimitiveArray<$primitive>>(value.l()?)?;
+				Self::from_java(env, jarr)
+			}
+		}
+	};
+}
+
+auto_from_java_primitive_array!(i8);
+auto_from_java_primitive_array!(i16);
+auto_from_java_primitive_array!(i32);
+auto_from_java_primitive_array!(i64);
+auto_from_java_primitive_array!(f32);
+auto_from_java_primitive_array!(f64);
+auto_from_java_primitive_array!(bool);
+
+impl<'j> FromJava<'j> for Vec<char> {
+	type From = JPrimitiveArray<'j, u16>;
+
+	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+		let len = value.len(env)?;
+		let mut out = vec![<u16>::default(); len];
+		value.get_region(env, 0, &mut out)?;
+		Ok(
+			out
+				.into_iter()
+				.map(|x| char::from_u32(x.into()).unwrap_or_default())
+				.collect()
+		)
+	}
+
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		let jarr = env.cast_local::<JPrimitiveArray<u16>>(value.l()?)?;
+		Self::from_java(env, jarr)
+	}
+}
 
 #[cfg(feature = "uuid")]
 impl<'j> FromJava<'j> for uuid::Uuid {
