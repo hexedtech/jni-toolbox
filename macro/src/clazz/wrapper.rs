@@ -40,7 +40,7 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 						)
 					};
 					let ___field = env.get_field(&object, jni::jni_str!(#name_str), ___sig)?;
-					#ty::from_jvalue(env, ___field)?
+					jni_toolbox::from_jvalue_static::<#ty>(env, ___field)?
 				};
 			));
 
@@ -115,7 +115,7 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 				env: &mut jni::Env<'local>,
 				value: jni::JValueOwned<'local>,
 			) -> Result<Self, jni::errors::Error> {
-				todo!()
+				Self::from_java(env, value.l()?)
 			}
 		}
 	})

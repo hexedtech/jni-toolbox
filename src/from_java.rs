@@ -7,6 +7,12 @@ pub fn from_java_static<'j, T: FromJava<'j>>(env: &mut jni::Env<'j>, val: T::Fro
 	T::from_java(env, val)
 }
 
+/// Used in the generated code to have proper type bindings. You probably didn't want
+/// to call this directly.
+pub fn from_jvalue_static<'j, T: FromJava<'j>>(env: &mut jni::Env<'j>, val: jni::JValueOwned<'j>) -> Result<T, jni::errors::Error> {
+	T::from_jvalue(env, val)
+}
+
 /// Specifies how a Java type should be converted before being fed to Rust.
 pub trait FromJava<'j> : Sized {
 	/// The JNI type representing the input.

@@ -3,7 +3,7 @@ pub mod from_java;
 pub mod error;
 
 pub use into_java::{IntoJavaObject, IntoJava};
-pub use from_java::{FromJava, from_java_static};
+pub use from_java::{FromJava, from_java_static, from_jvalue_static};
 pub use error::{
 	IntoException,
 	JniToolboxError as Error,
