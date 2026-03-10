@@ -13,10 +13,51 @@ pub trait FromJava<'j> : Sized {
 	type From : Sized;
 	/// Attempts to convert this Java object into its Rust counterpart.
 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error>;
+	/// Attempts to convert this Rust object into a JValue (used in constructors)
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error>;
 }
 
+impl<'j> FromJava<'j> for JObject<'j> {
+	type From = JObject<'j>;
+
+	#[inline]
+	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
+		Ok(value)
+	}
+
+	fn from_jvalue(_: &mut jni::Env, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		value.l()
+	}
+}
+
+impl<'j> FromJava<'j> for JString<'j> {
+	type From = JString<'j>;
+
+	#[inline]
+	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
+		Ok(value)
+	}
+
+	fn from_jvalue(env: &mut jni::Env, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		JString::cast_local(env, value.l()?)
+	}
+}
+
+// impl<'j> FromJava<'j> for JObjectArray<'j> {
+// 	type From = JObjectArray<'j>;
+// 
+// 	#[inline]
+// 	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
+// 		Ok(value)
+// 	}
+// 
+// 	fn from_jvalue(env: &mut jni::Env, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+// 		Ok(JObjectArray::cast_local(env, value.l()?)?)
+// 	}
+// }
+
 macro_rules! auto_from_java {
-	($t: ty, $j: ty) => {
+	($t: ty, $j: ty, $ext:ident) => {
 		impl<'j> FromJava<'j> for $t {
 			type From = $j;
 		
@@ -24,20 +65,21 @@ macro_rules! auto_from_java {
 			fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
 				Ok(value)
 			}
+
+			fn from_jvalue(_: &mut jni::Env, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+				value.$ext()
+			}
 		}
 	};
 }
 
-auto_from_java!(i8, jni::sys::jbyte);
-auto_from_java!(i16, jni::sys::jshort);
-auto_from_java!(i32, jni::sys::jint);
-auto_from_java!(i64, jni::sys::jlong);
-auto_from_java!(f32, jni::sys::jfloat);
-auto_from_java!(f64, jni::sys::jdouble);
-auto_from_java!(bool, jni::sys::jboolean);
-auto_from_java!(JObject<'j>, JObject<'j>);
-auto_from_java!(JString<'j>, JString<'j>);
-auto_from_java!(JObjectArray<'j>, JObjectArray<'j>);
+auto_from_java!(i8, jni::sys::jbyte, b);
+auto_from_java!(i16, jni::sys::jshort, s);
+auto_from_java!(i32, jni::sys::jint, i);
+auto_from_java!(i64, jni::sys::jlong, j);
+auto_from_java!(f32, jni::sys::jfloat, f);
+auto_from_java!(f64, jni::sys::jdouble, d);
+auto_from_java!(bool, jni::sys::jboolean, z);
 
 impl<'j, T: TypeArray> FromJava<'j> for JPrimitiveArray<'j, T> {
 	type From = JPrimitiveArray<'j, T>;
@@ -45,6 +87,10 @@ impl<'j, T: TypeArray> FromJava<'j> for JPrimitiveArray<'j, T> {
 	#[inline]
 	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
 		Ok(value)
+	}
+
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		todo!()
 	}
 }
 
@@ -55,6 +101,10 @@ impl<'j> FromJava<'j> for char {
 	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
 		char::from_u32(value.into()).ok_or_else(|| jni::errors::Error::WrongJValueType("char", "invalid u16"))
 	}
+
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		value.c_char()
+	}
 }
 
 impl<'j> FromJava<'j> for String {
@@ -64,8 +114,13 @@ impl<'j> FromJava<'j> for String {
 		if value.is_null() { return Err(jni::errors::Error::NullPtr("string can't be null")) };
 		Ok(value.to_string())
 	}
+
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		Ok(JString::cast_local(env, value.l()?)?.to_string())
+	}
 }
 
+// TODO do we need Option<T> for primitives?
 impl<'j, T> FromJava<'j> for Option<T>
 where
 	T: FromJava<'j, From: AsRef<JObject<'j>>>,
@@ -75,6 +130,12 @@ where
 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
 		if value.as_ref().is_null() { return Ok(None) };
 		Ok(Some(T::from_java(env, value)?))
+	}
+
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		// TODO this is only for objects, right??
+		if value.borrow().l()?.is_null() { return Ok(None) };
+		Ok(Some(T::from_jvalue(env, value)?))
 	}
 }
 
@@ -90,46 +151,50 @@ impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
 		}
 		Ok(out)
 	}
-}
 
-macro_rules! auto_from_java_primitive_array {
-	($primitive:ty) => {
-		impl<'j> FromJava<'j> for Vec<$primitive> {
-			type From = JPrimitiveArray<'j, $primitive>;
-		
-			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-				let len = value.len(env)?;
-				let mut out = vec![<$primitive>::default(); len];
-				value.get_region(env, 0, &mut out)?;
-				Ok(out)
-			}
-		}
-	};
-}
-
-auto_from_java_primitive_array!(i8);
-auto_from_java_primitive_array!(i16);
-auto_from_java_primitive_array!(i32);
-auto_from_java_primitive_array!(i64);
-auto_from_java_primitive_array!(f32);
-auto_from_java_primitive_array!(f64);
-auto_from_java_primitive_array!(bool);
-
-impl<'j> FromJava<'j> for Vec<char> {
-	type From = JPrimitiveArray<'j, u16>;
-
-	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-		let len = value.len(env)?;
-		let mut out = vec![<u16>::default(); len];
-		value.get_region(env, 0, &mut out)?;
-		Ok(
-			out
-				.into_iter()
-				.map(|x| char::from_u32(x.into()).unwrap_or_default())
-				.collect()
-		)
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		todo!()
 	}
 }
+
+// macro_rules! auto_from_java_primitive_array {
+// 	($primitive:ty) => {
+// 		impl<'j> FromJava<'j> for Vec<$primitive> {
+// 			type From = JPrimitiveArray<'j, $primitive>;
+// 		
+// 			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+// 				let len = value.len(env)?;
+// 				let mut out = vec![<$primitive>::default(); len];
+// 				value.get_region(env, 0, &mut out)?;
+// 				Ok(out)
+// 			}
+// 		}
+// 	};
+// }
+// 
+// auto_from_java_primitive_array!(i8);
+// auto_from_java_primitive_array!(i16);
+// auto_from_java_primitive_array!(i32);
+// auto_from_java_primitive_array!(i64);
+// auto_from_java_primitive_array!(f32);
+// auto_from_java_primitive_array!(f64);
+// auto_from_java_primitive_array!(bool);
+
+// impl<'j> FromJava<'j> for Vec<char> {
+// 	type From = JPrimitiveArray<'j, u16>;
+// 
+// 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+// 		let len = value.len(env)?;
+// 		let mut out = vec![<u16>::default(); len];
+// 		value.get_region(env, 0, &mut out)?;
+// 		Ok(
+// 			out
+// 				.into_iter()
+// 				.map(|x| char::from_u32(x.into()).unwrap_or_default())
+// 				.collect()
+// 		)
+// 	}
+// }
 
 #[cfg(feature = "uuid")]
 impl<'j> FromJava<'j> for uuid::Uuid {

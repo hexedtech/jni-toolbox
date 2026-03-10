@@ -6,11 +6,26 @@ pub trait IntoJava<'j> {
 	/// The JNI type representing the output.
 	type Ret;
 	/// Attempts to convert this Rust object into a Java primitive.
-	fn into_java(self, _: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error>;
+	fn into_java(self, e: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error>;
+	/// Attempts to convert this Rust object into a JValue (used in constructors)
+	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error>;
+}
+
+impl<'j> IntoJava<'j> for () {
+	type Ret = ();
+
+	#[inline]
+	fn into_java(self, _: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
+		Ok(self)
+	}
+
+	fn into_jvalue(self, _: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+		Ok(jni::JValueOwned::Void)
+	}
 }
 
 macro_rules! auto_into_java {
-	($t: ty, $j: ty) => {
+	($t: ty, $j: ty, $jvalue:expr) => {
 		impl<'j> IntoJava<'j> for $t {
 			type Ret = $j;
 		
@@ -18,20 +33,23 @@ macro_rules! auto_into_java {
 			fn into_java(self, _: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
 				Ok(self)
 			}
+
+			fn into_jvalue(self, _: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+				Ok($jvalue(self))
+			}
 		}
 	};
 }
 
 // TODO: primitive arrays!
 
-auto_into_java!(i64, jni::sys::jlong);
-auto_into_java!(i32, jni::sys::jint);
-auto_into_java!(i16, jni::sys::jshort);
-auto_into_java!(i8, jni::sys::jbyte);
-auto_into_java!(f32, jni::sys::jfloat);
-auto_into_java!(f64, jni::sys::jdouble);
-auto_into_java!(bool, jni::sys::jboolean);
-auto_into_java!((), ());
+auto_into_java!(i64, jni::sys::jlong, jni::JValueOwned::Long);
+auto_into_java!(i32, jni::sys::jint, jni::JValueOwned::Int);
+auto_into_java!(i16, jni::sys::jshort, jni::JValueOwned::Short);
+auto_into_java!(i8, jni::sys::jbyte, jni::JValueOwned::Byte);
+auto_into_java!(f32, jni::sys::jfloat, jni::JValueOwned::Float);
+auto_into_java!(f64, jni::sys::jdouble, jni::JValueOwned::Double);
+auto_into_java!(bool, jni::sys::jboolean, jni::JValueOwned::Bool);
 
 impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
 	type Ret = jni::sys::jobject;
@@ -39,6 +57,10 @@ impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
 	#[inline]
 	fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
 		Ok(self.into_java_object(env)?.as_raw())
+	}
+
+	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+		Ok(jni::JValueOwned::Object(self.into_java_object(e)?))
 	}
 }
 

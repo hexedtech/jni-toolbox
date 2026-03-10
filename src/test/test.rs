@@ -1,4 +1,4 @@
-use jni_toolbox::jni;
+use jni_toolbox::{jni, jclass};
 
 #[jni(package = "toolbox", class = "Main")]
 fn sum(a: i32, b: i32) -> i32 {
@@ -47,4 +47,10 @@ impl jni_toolbox::IntoException  for CustomError {
 #[jni(package = "toolbox", class = "Main")]
 fn throw_error() -> Result<(), CustomError> {
 	Err(CustomError(42))
+}
+
+#[jclass(class = "mp/some/class")]
+struct CustomClass {
+	field: String,
+	flag: bool,
 }

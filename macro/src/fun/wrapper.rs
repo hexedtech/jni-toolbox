@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream};
 use syn::Item;
 
-use crate::{args::ArgumentOptions, attrs::AttrsOptions, ret::ReturnOptions};
+use crate::fun::{args::ArgumentOptions, attrs::AttrsOptions, ret::ReturnOptions};
 
 pub(crate) fn generate_jni_wrapper(attrs: TokenStream, original_fn: TokenStream) -> Result<TokenStream, syn::Error> {
 	let Item::Fn(fn_item) = syn::parse2(original_fn.clone())? else {
