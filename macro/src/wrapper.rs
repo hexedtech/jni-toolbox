@@ -10,18 +10,9 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 
 	let attrs = AttrsOptions::parse_attr(attrs)?;
 	let ret = ReturnOptions::parse_signature(&fn_item.sig.output)?;
-	let return_expr = if ret.void {
-		quote::quote!( () )
-	} else if ret.bool {
-		quote::quote!( false )
-	} else if ret.pointer {
-		quote::quote!( std::ptr::null_mut() )
-	} else {
-		quote::quote!( 0 )
-	};
 
 	// TODO a bit ugly passing the return expr down... we should probably manage returns here
-	let args = ArgumentOptions::parse_args(&fn_item, return_expr.clone())?;
+	let args = ArgumentOptions::parse_args(&fn_item)?;
 
 	let return_type = ret.tokens();
 
@@ -63,7 +54,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 
 		#header {
 			env.with_env(|mut env| {
-				use jni_toolbox::{JniToolboxError, FromJava, IntoJava};
+				use jni_toolbox::{FromJava, IntoJava};
 
 				#transforming
 

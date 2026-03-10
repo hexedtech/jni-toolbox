@@ -31,7 +31,7 @@ fn type_equals(ty: Box<syn::Type>, search: impl AsRef<str>) -> bool {
 }
 
 impl ArgumentOptions {
-	pub(crate) fn parse_args(fn_item: &syn::ItemFn, ret_expr: TokenStream) -> Result<Self, syn::Error> {
+	pub(crate) fn parse_args(fn_item: &syn::ItemFn) -> Result<Self, syn::Error> {
 		let mut arguments = Vec::new();
 		let mut pass_env = false;
 		let mut pass_class = false;

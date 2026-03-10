@@ -1,4 +1,4 @@
-use jni_toolbox::{jni, JniToolboxError};
+use jni_toolbox::jni;
 
 #[jni(package = "toolbox", class = "Main")]
 fn sum(a: i32, b: i32) -> i32 {
@@ -38,9 +38,9 @@ fn raw<'local>(env: &mut jni::Env<'local>) -> Result<jni::objects::JString<'loca
 #[error("some test error")]
 struct CustomError;
 
-impl JniToolboxError for CustomError {
-	fn jclass(&self) -> jni::strings::JNIString {
-		jni::strings::JNIString::new("toolbox/CustomException")	
+impl From<CustomError> for jni::errors::Error {
+	fn from(_value: CustomError) -> Self {
+		jni::errors::Error::ClassFormatError
 	}
 }
 

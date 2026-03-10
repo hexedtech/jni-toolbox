@@ -3,7 +3,6 @@ use proc_macro2::{Span, TokenStream, TokenTree};
 pub(crate) struct AttrsOptions {
 	pub(crate) package: String,
 	pub(crate) class: String,
-	pub(crate) exception: Option<String>,
 	pub(crate) inline: bool,
 }
 
@@ -13,7 +12,6 @@ impl AttrsOptions {
 
 		let mut package = None;
 		let mut class = None;
-		let mut exception = None;
 		let mut inline = false;
 	
 		for attr in attrs {
@@ -43,8 +41,7 @@ impl AttrsOptions {
 					}
 				},
 				WhatNext::Exception => {
-					if let TokenTree::Literal(i) = attr {
-						exception = Some(i.to_string().replace('"', "").replace(".", "_"));
+					if let TokenTree::Literal(_i) = attr {
 						what_next = WhatNext::Nothing;
 					}
 				}
@@ -54,7 +51,7 @@ impl AttrsOptions {
 		let Some(package) = package else { return Err(syn::Error::new(Span::call_site(), "missing required attribute 'package'")) };
 		let Some(class) = class else { return Err(syn::Error::new(Span::call_site(), "missing required attribute 'class'")) };
 
-		Ok(Self { package, class, exception, inline })
+		Ok(Self { package, class, inline })
 	}
 }
 

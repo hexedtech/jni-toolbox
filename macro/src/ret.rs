@@ -8,17 +8,12 @@ use crate::ext::bare_type;
 pub(crate) struct ReturnOptions {
 	pub(crate) ty: Option<Box<Type>>,
 	pub(crate) result: bool,
-	pub(crate) pointer: bool,
-	pub(crate) void: bool,
-	pub(crate) bool: bool,
 }
-
-const PRIMITIVE_TYPES: [&str; 6] = ["i8", "i16", "i32", "i64", "f32", "f64"];
 
 impl ReturnOptions {
 	pub(crate) fn parse_signature(ret: &ReturnType) -> Result<Self, syn::Error> {
 		match ret {
-			syn::ReturnType::Default => Ok(Self { ty: None, result: false, void: true, pointer: false, bool: false }),
+			syn::ReturnType::Default => Ok(Self { ty: None, result: false }),
 			syn::ReturnType::Type(_tok, ty) => match bare_type(ty.clone()) {
 				Some(path) => {
 					let Some(last) = path.path.segments.last() else {
@@ -33,10 +28,7 @@ impl ReturnOptions {
 								match generic {
 									syn::GenericArgument::Lifetime(_) => continue,
 									syn::GenericArgument::Type(ty) => {
-										// TODO checking by making ty a token stream and then string equals is not exactly great!
-										let bool = ty.to_token_stream().to_string() == "bool";
-										let pointer = !PRIMITIVE_TYPES.iter().any(|t| ty.to_token_stream().to_string() == *t);
-										return Ok(Self { ty: Some(Box::new(ty.clone())), result: true, void: is_void(ty), pointer, bool });
+										return Ok(Self { ty: Some(Box::new(ty.clone())), result: true });
 									},
 									_ => return Err(syn::Error::new(Span::call_site(), "unexpected type in Result"))
 								}
@@ -44,9 +36,7 @@ impl ReturnOptions {
 						}
 					}
 
-					let bool = last.ident == "bool";
-					let pointer = !PRIMITIVE_TYPES.iter().any(|t| last.ident == t);
-					Ok(Self { ty: Some(Box::new(Type::Path(path.clone()))), result: false, void: false, pointer, bool })
+					Ok(Self { ty: Some(Box::new(Type::Path(path.clone()))), result: false })
 				},
 				None => Err(syn::Error::new(Span::call_site(), "unsupported return type")),
 			},
@@ -58,26 +48,5 @@ impl ReturnOptions {
 			None => ReturnType::Default.to_token_stream(),
 			Some(t) => quote::quote!( -> <#t as jni_toolbox::IntoJava<'local>>::Ret )
 		}
-	}
-}
-
-fn is_void(ty: &syn::Type) -> bool {
-	match ty {
-		Type::Array(_) => false,
-		Type::BareFn(_) => false,
-		Type::Group(g) => is_void(&g.elem),
-		Type::ImplTrait(_) => false,
-		Type::Infer(_) => false,
-		Type::Macro(_) => false,
-		Type::Never(_) => true,
-		Type::Paren(p) => is_void(&p.elem),
-		Type::Path(p) => p.path.segments.is_empty(),
-		Type::Ptr(_) => false,
-		Type::Reference(_) => false,
-		Type::Slice(_) => false,
-		Type::TraitObject(_) => false,
-		Type::Tuple(x) => x.elems.is_empty(),
-		Type::Verbatim(_) => false,
-		_ => todo!(),
 	}
 }
