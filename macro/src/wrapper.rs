@@ -3,8 +3,8 @@ use syn::Item;
 
 use crate::{args::ArgumentOptions, attrs::AttrsOptions, ret::ReturnOptions};
 
-pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Result<TokenStream, syn::Error> {
-	let Item::Fn(fn_item) = syn::parse2(input.clone())? else {
+pub(crate) fn generate_jni_wrapper(attrs: TokenStream, original_fn: TokenStream) -> Result<TokenStream, syn::Error> {
+	let Item::Fn(fn_item) = syn::parse2(original_fn.clone())? else {
 		return Err(syn::Error::new(Span::call_site(), "#[jni] is only supported on functions"));
 	};
 
@@ -29,10 +29,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 		pub extern "system" fn #fn_name<'local>(#incoming) #return_type
 	};
 
-
 	let transforming = args.transforming;
-
-
 	let env_iden = args.env;
 	let forwarding = args.forwarding;
 
@@ -50,10 +47,10 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 
 	Ok(quote::quote! {
 		#inline_macro
-		#input
+		#original_fn
 
 		#header {
-			env.with_env(|mut env| {
+			env.with_env(|mut env| -> Result<_, jni_toolbox::Error> {
 				use jni_toolbox::{FromJava, IntoJava};
 
 				#transforming
@@ -62,9 +59,9 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, input: TokenStream) -> Re
 
 				#error_handling
 				
-				ret.into_java(&mut #env_iden)
+				Ok(ret.into_java(&mut #env_iden)?)
 			})
-				.resolve::<jni::errors::ThrowRuntimeExAndDefault>()
+				.resolve::<jni_toolbox::ErrorPolicy>()
 		}
 	})
 }

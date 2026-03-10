@@ -36,15 +36,18 @@ fn raw<'local>(env: &mut jni::Env<'local>) -> Result<jni::objects::JString<'loca
 
 #[derive(thiserror::Error, Debug)]
 #[error("some test error")]
-struct CustomError;
+struct CustomError(i32);
 
-impl From<CustomError> for jni::errors::Error {
-	fn from(_value: CustomError) -> Self {
-		jni::errors::Error::ClassFormatError
+impl From<CustomError> for jni_toolbox::Error {
+	fn from(value: CustomError) -> Self {
+		Self {
+			clazz: "java/lang/Exception",
+			message: Some(format!("this is a custom error: {value:?}")),
+		}
 	}
 }
 
 #[jni(package = "toolbox", class = "Main")]
 fn throw_error() -> Result<(), CustomError> {
-	Err(CustomError)
+	Err(CustomError(42))
 }

@@ -17,6 +17,7 @@ edition = "2021"
 jni-toolbox-macro = { version = "0.2.2", path = "macro" }
 jni = "0.22"
 uuid = { version = "1.10", optional = true }
+thiserror = "2.0"
 
 [features]
 default = []

@@ -12,4 +12,4 @@ path = "test.rs"
 jni-toolbox-macro = { path = "../../macro/" }
 jni-toolbox = { path = "../.." }
 jni = "0.22"
-thiserror = "1"
+thiserror = "2.0"
