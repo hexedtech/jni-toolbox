@@ -158,7 +158,7 @@ where
 	}
 }
 
-impl<'j, T: FromJava<'j, From = JObject<'j>> + jni::refs::Reference> FromJava<'j> for Vec<T> {
+impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
 	type From = JObjectArray<'j>;
 
 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
