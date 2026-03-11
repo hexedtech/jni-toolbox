@@ -19,7 +19,7 @@ pub trait FromJava<'j> : Sized {
 	type From : Sized;
 	/// Attempts to convert this Java object into its Rust counterpart.
 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error>;
-	/// Attempts to convert this Rust object into a JValue (used in constructors)
+	/// Attempts to convert this Rust object into a JValue (used in constructors).
 	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error>;
 }
 
@@ -49,18 +49,19 @@ impl<'j> FromJava<'j> for JString<'j> {
 	}
 }
 
-// impl<'j> FromJava<'j> for JObjectArray<'j> {
-// 	type From = JObjectArray<'j>;
-// 
-// 	#[inline]
-// 	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
-// 		Ok(value)
-// 	}
-// 
-// 	fn from_jvalue(env: &mut jni::Env, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-// 		Ok(JObjectArray::cast_local(env, value.l()?)?)
-// 	}
-// }
+impl<'j> FromJava<'j> for JObjectArray<'j> {
+	type From = JObjectArray<'j>;
+
+	#[inline]
+	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
+		Ok(value)
+	}
+
+	fn from_jvalue(env: &mut jni::Env, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		let val = value.l()?;
+		Self::From::cast_local(env, val)
+	}
+}
 
 macro_rules! auto_from_java {
 	($t: ty, $j: ty, $ext:ident) => {
