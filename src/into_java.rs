@@ -1,4 +1,4 @@
-use jni::{objects::{JObject, JObjectArray}, signature::{JavaType, Primitive}};
+use jni::{jni_str, objects::{JObject, JObjectArray}, signature::{JavaType, Primitive, RuntimeMethodSignature}};
 
 
 /// Specifies how a Rust type should be converted into a Java primitive.
@@ -131,6 +131,50 @@ impl<'j> IntoJavaObject<'j> for String {
 	}
 }
 
+impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Option<T> {
+	const CLASS: &'static str = T::CLASS;
+	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
+		match self {
+			Some(x) => x.into_java_object(env),
+			None => Ok(JObject::null())
+		}
+	}
+}
+
+macro_rules! auto_into_java_object_primitive_option {
+	($t:ty, $clazz:literal, $primitive_desc:literal) => {
+		impl<'j> IntoJavaObject<'j> for Option<$t> {
+			const CLASS: &'static str = $clazz;
+			fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
+				match self {
+					Some(val) => {
+						let class_name = jni::strings::JNIString::new(Self::CLASS);
+						let class = env.find_class(&class_name)?;
+						let jvalue = val.into_jvalue(env)?;
+						let sig = RuntimeMethodSignature::from_str(concat!("(", $primitive_desc, ")L", $clazz, ";"))?;
+						let res = env.call_static_method(
+							&class,
+							jni_str!("valueOf"),
+							sig.method_signature(),
+							&[jvalue.borrow()]
+						)?;
+						res.l()
+					},
+					None => Ok(JObject::null()),
+				}
+			}
+		}
+	};
+}
+
+auto_into_java_object_primitive_option!(i8, "java/lang/Byte", "B");
+auto_into_java_object_primitive_option!(i16, "java/lang/Short", "S");
+auto_into_java_object_primitive_option!(i32, "java/lang/Integer", "I");
+auto_into_java_object_primitive_option!(i64, "java/lang/Long", "J");
+auto_into_java_object_primitive_option!(f32, "java/lang/Float", "F");
+auto_into_java_object_primitive_option!(f64, "java/lang/Double", "D");
+auto_into_java_object_primitive_option!(bool, "java/lang/Boolean", "Z");
+
 impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<T> {
 	const CLASS: &'static str = T::CLASS;
 	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
@@ -140,16 +184,6 @@ impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<T> {
 			arr.set_element(env, n, &el)?;
 		}
 		Ok(JObject::from(arr))
-	}
-}
-
-impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Option<T> {
-	const CLASS: &'static str = T::CLASS;
-	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
-		match self {
-			Some(x) => x.into_java_object(env),
-			None => Ok(JObject::null())
-		}
 	}
 }
 
