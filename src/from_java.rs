@@ -1,5 +1,4 @@
-use jni::objects::{JObject, JObjectArray, JPrimitiveArray, JString, TypeArray};
-
+use jni::{objects::{JObject, JObjectArray, JPrimitiveArray, JString, TypeArray}, signature::RuntimeMethodSignature};
 
 /// Used in the generated code to have proper type bindings. You probably didn't want
 /// to call this directly.
@@ -21,6 +20,25 @@ pub trait FromJava<'j> : Sized {
 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error>;
 	/// Attempts to convert this Rust object into a JValue (used in constructors).
 	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error>;
+}
+
+/// Specifies how a Java object can be converted into a Rust type.
+pub trait FromJavaObject<'j> : Sized {
+	/// Attempts to convert this Java object into a Rust type.
+	fn from_java_object(obj: JObject<'j>, env: &mut jni::Env<'j>) -> Result<Self, jni::errors::Error>;
+}
+
+impl<'j, X: FromJavaObject<'j>> FromJava<'j> for X {
+	type From = JObject<'j>; // TODO or jni::sys::jobject??
+
+	#[inline]
+	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+		Self::from_java_object(value, env)
+	}
+
+	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+		Self::from_java_object(value.l()?, env)
+	}
 }
 
 impl<'j> FromJava<'j> for JObject<'j> {
@@ -64,9 +82,9 @@ impl<'j> FromJava<'j> for JObjectArray<'j> {
 }
 
 macro_rules! auto_from_java {
-	($t: ty, $j: ty, $ext:ident) => {
+	($t: ty, $from_type: ty, $sig:literal, $ext:ident, $method:literal) => {
 		impl<'j> FromJava<'j> for $t {
-			type From = $j;
+			type From = $from_type;
 		
 			#[inline]
 			fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
@@ -93,16 +111,27 @@ macro_rules! auto_from_java {
 				Self::from_java(env, jarr)
 			}
 		}
+
+		impl<'j> FromJavaObject<'j> for Option<$t> {
+			fn from_java_object(obj: JObject<'j>, env: &mut jni::Env<'j>) -> Result<Self, jni::errors::Error> {
+				if obj.is_null() {
+					return Ok(None);
+				}
+				let sig = RuntimeMethodSignature::from_str(concat!("()", $sig))?;
+				let jval = env.call_method(&obj, jni::jni_str!($method), sig.method_signature(), &[])?;
+				Ok(Some(jval.$ext()?))
+			}
+		}
 	};
 }
 
-auto_from_java!(i8, jni::sys::jbyte, b);
-auto_from_java!(i16, jni::sys::jshort, s);
-auto_from_java!(i32, jni::sys::jint, i);
-auto_from_java!(i64, jni::sys::jlong, j);
-auto_from_java!(f32, jni::sys::jfloat, f);
-auto_from_java!(f64, jni::sys::jdouble, d);
-auto_from_java!(bool, jni::sys::jboolean, z);
+auto_from_java!(i8, jni::sys::jbyte, "B", b, "byteValue");
+auto_from_java!(i16, jni::sys::jshort, "S", s, "shortValue");
+auto_from_java!(i32, jni::sys::jint, "I", i, "intValue");
+auto_from_java!(i64, jni::sys::jlong, "J", j, "longValue");
+auto_from_java!(f32, jni::sys::jfloat, "F", f, "floatValue");
+auto_from_java!(f64, jni::sys::jdouble, "D", d, "doubleValue");
+auto_from_java!(bool, jni::sys::jboolean, "Z", z, "booleanValue");
 
 impl<'j> FromJava<'j> for u8 {
 	type From = jni::sys::jbyte;
@@ -143,35 +172,20 @@ impl<'j> FromJava<'j> for char {
 	}
 }
 
-impl<'j> FromJava<'j> for String {
-	type From = JString<'j>;
-
-	fn from_java(_: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-		if value.is_null() { return Err(jni::errors::Error::NullPtr("string can't be null")) };
-		Ok(value.to_string())
-	}
-
-	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-		let jstr = JString::cast_local(env, value.l()?)?; 
-		Self::from_java(env, jstr)
+impl<'j> FromJavaObject<'j> for String {
+	fn from_java_object(obj: JObject<'j>, env: &mut jni::Env<'j>) -> Result<Self, jni::errors::Error> {
+		let jstr = JString::cast_local(env, obj)?; 
+		Ok(jstr.to_string())
 	}
 }
 
-impl<'j, T> FromJava<'j> for Option<T>
-where
-	T: FromJava<'j, From: AsRef<JObject<'j>>>,
-{
-	type From = T::From;
-
-	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-		if value.as_ref().is_null() { return Ok(None) };
-		Ok(Some(T::from_java(env, value)?))
-	}
-
-	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-		// TODO this is only for objects, right??
-		if value.borrow().l()?.is_null() { return Ok(None) };
-		Ok(Some(T::from_jvalue(env, value)?))
+impl<'j, T: FromJavaObject<'j>> FromJavaObject<'j> for Option<T> {
+	fn from_java_object(obj: JObject<'j>, env: &mut jni::Env<'j>) -> Result<Self, jni::errors::Error> {
+		if obj.is_null() {
+			Ok(None)
+		} else {
+			Ok(Some(T::from_java_object(obj, env)?))
+		}
 	}
 }
 
@@ -232,25 +246,20 @@ impl<'j> FromJava<'j> for Vec<char> {
 }
 
 #[cfg(feature = "uuid")]
-impl<'j> FromJava<'j> for uuid::Uuid {
-	type From = JObject<'j>;
-	fn from_java(env: &mut jni::Env<'j>, uuid: Self::From) -> Result<Self, jni::errors::Error> {
+impl<'j> FromJavaObject<'j> for uuid::Uuid {
+	fn from_java_object(obj: JObject<'j>, env: &mut jni::Env<'j>) -> Result<Self, jni::errors::Error> {
 		let lsb = u64::from_ne_bytes(
-			env.call_method(&uuid, jni::jni_str!("getLeastSignificantBits"), jni::jni_sig!("()J"), &[])?
+			env.call_method(&obj, jni::jni_str!("getLeastSignificantBits"), jni::jni_sig!("()J"), &[])?
 				.j()?
 				.to_ne_bytes()
 		);
 
 		let msb = u64::from_ne_bytes(
-			env.call_method(&uuid, jni::jni_str!("getMostSignificantBits"), jni::jni_sig!("()J"), &[])?
+			env.call_method(&obj, jni::jni_str!("getMostSignificantBits"), jni::jni_sig!("()J"), &[])?
 				.j()?
 				.to_ne_bytes()
 		);
 		
 		Ok(uuid::Uuid::from_u64_pair(msb, lsb))
-	}
-
-	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-		Self::from_java(env, value.l()?)
 	}
 }

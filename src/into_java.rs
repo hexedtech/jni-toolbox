@@ -1,7 +1,7 @@
 use jni::{jni_str, objects::{JObject, JObjectArray}, signature::{JavaType, Primitive, RuntimeMethodSignature}};
 
 
-/// Specifies how a Rust type should be converted into a Java primitive.
+/// Specifies how a Rust type should be converted into a JNI-compatible type.
 pub trait IntoJava<'j> {
 	/// The JNI-compatible type the conversion will return.
 	type Ret;
@@ -9,8 +9,41 @@ pub trait IntoJava<'j> {
 	fn signature() -> (String, JavaType);
 	/// Attempts to convert this Rust object into a Java primitive.
 	fn into_java(self, e: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error>;
-	/// Attempts to convert this Rust object into a JValue (used in constructors)
+	/// Attempts to convert this Rust object into a JValue (used in constructors).
 	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error>;
+}
+
+/// Specifies how a Rust type should be converted into a Java object.
+pub trait IntoJavaObject<'j> {
+	/// The Java class associated with this type.
+	const CLASS: &'static str;
+	/// The array depth of this type. It is always 0 for non-array types.
+	const ARRAY_DEPTH: usize = 0;
+	/// Attempts to convert this Rust object into a Java object.
+	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error>;
+}
+
+impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
+	type Ret = jni::sys::jobject;
+
+	fn signature() -> (String, JavaType) {
+		let jt = if Self::ARRAY_DEPTH > 0 {
+			JavaType::Array
+		} else {
+			JavaType::Object
+		};
+	
+		(format!("{}L{};", "[".repeat(Self::ARRAY_DEPTH), Self::CLASS), jt)
+	}
+
+	#[inline]
+	fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
+		Ok(self.into_java_object(env)?.as_raw())
+	}
+
+	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+		Ok(jni::JValueOwned::Object(self.into_java_object(e)?))
+	}
 }
 
 impl<'j> IntoJava<'j> for () {
@@ -93,39 +126,6 @@ auto_into_java!(i64, "L", "java/lang/Long", jni::sys::jlong, Long, new_long_arra
 auto_into_java!(f32, "F", "java/lang/Float", jni::sys::jfloat, Float, new_float_array);
 auto_into_java!(f64, "D", "java/lang/Double", jni::sys::jdouble, Double, new_double_array);
 auto_into_java!(bool, "Z", "java/lang/Boolean", jni::sys::jboolean, JavaType::Primitive(Primitive::Boolean), jni::JValueOwned::Bool, new_boolean_array);
-
-impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
-	type Ret = jni::sys::jobject;
-
-	fn signature() -> (String, JavaType) {
-		let jt = if Self::ARRAY_DEPTH > 0 {
-			JavaType::Array
-		} else {
-			JavaType::Object
-		};
-	
-		(format!("{}L{};", "[".repeat(Self::ARRAY_DEPTH), Self::CLASS), jt)
-	}
-
-	#[inline]
-	fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
-		Ok(self.into_java_object(env)?.as_raw())
-	}
-
-	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
-		Ok(jni::JValueOwned::Object(self.into_java_object(e)?))
-	}
-}
-
-/// Specifies how a Rust type should be converted into a Java object.
-pub trait IntoJavaObject<'j> {
-	/// The Java class associated with this type.
-	const CLASS: &'static str;
-	/// The array depth of this type. It is always 0 for non-array types.
-	const ARRAY_DEPTH: usize = 0;
-	/// Attempts to convert this Rust object into a Java object.
-	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error>;
-}
 
 impl<'j> IntoJavaObject<'j> for JObject<'j> {
 	const CLASS: &'static str = "java/lang/Object";
