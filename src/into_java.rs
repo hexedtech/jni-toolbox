@@ -3,6 +3,7 @@ use jni::{jni_str, objects::{JObject, JObjectArray}, signature::{JavaType, Primi
 
 /// Specifies how a Rust type should be converted into a Java primitive.
 pub trait IntoJava<'j> {
+	/// The JNI-compatible type the conversion will return.
 	type Ret;
 	/// The JNI type representing the output.
 	fn signature() -> (String, JavaType);
@@ -62,20 +63,13 @@ impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
 	type Ret = jni::sys::jobject;
 
 	fn signature() -> (String, JavaType) {
-		let mut base_type = Self::CLASS;
-		let mut depth = 0;
-		while let Some(stripped) = base_type.strip_suffix("[]") {
-			depth += 1;
-			base_type = stripped;
-		}
-
-		let jt = if depth > 0 {
+		let jt = if Self::ARRAY_DEPTH > 0 {
 			JavaType::Array
 		} else {
 			JavaType::Object
 		};
 	
-		(format!("{}L{};", "[".repeat(depth), base_type), jt)
+		(format!("{}L{};", "[".repeat(Self::ARRAY_DEPTH), Self::CLASS), jt)
 	}
 
 	#[inline]
@@ -92,6 +86,8 @@ impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
 pub trait IntoJavaObject<'j> {
 	/// The Java class associated with this type.
 	const CLASS: &'static str;
+	/// The array depth of this type. It is always 0 for non-array types.
+	const ARRAY_DEPTH: usize = 0;
 	/// Attempts to convert this Rust object into a Java object.
 	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error>;
 }
@@ -106,8 +102,9 @@ impl<'j> IntoJavaObject<'j> for JObject<'j> {
 }
 
 macro_rules! auto_into_java_object {
-	($t:ty, $cls:literal) => {
+	($t:ty, $depth:literal, $cls:literal) => {
 		impl<'j> IntoJavaObject<'j> for $t {
+			const ARRAY_DEPTH: usize = $depth;
 			const CLASS: &'static str = $cls;
 			#[inline]
 			fn into_java_object(self, _: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
@@ -117,16 +114,16 @@ macro_rules! auto_into_java_object {
 	};
 }
 
-auto_into_java_object!(jni::objects::JString<'j>, "java/lang/String");
-auto_into_java_object!(jni::objects::JObjectArray<'j>, "java/lang/Object[]");
-auto_into_java_object!(jni::objects::JIntArray<'j>, "java/lang/Integer[]");
-auto_into_java_object!(jni::objects::JLongArray<'j>, "java/lang/Long[]");
-auto_into_java_object!(jni::objects::JShortArray<'j>, "java/lang/Short[]");
-auto_into_java_object!(jni::objects::JByteArray<'j>, "java/lang/Byte[]");
-auto_into_java_object!(jni::objects::JCharArray<'j>, "java/lang/Char[]");
-auto_into_java_object!(jni::objects::JFloatArray<'j>, "java/lang/Float[]");
-auto_into_java_object!(jni::objects::JDoubleArray<'j>, "java/lang/Double[]");
-auto_into_java_object!(jni::objects::JBooleanArray<'j>, "java/lang/Boolean[]");
+auto_into_java_object!(jni::objects::JString<'j>, 0, "java/lang/String");
+auto_into_java_object!(jni::objects::JObjectArray<'j>, 1, "java/lang/Object");
+auto_into_java_object!(jni::objects::JIntArray<'j>, 1, "java/lang/Integer");
+auto_into_java_object!(jni::objects::JLongArray<'j>, 1, "java/lang/Long");
+auto_into_java_object!(jni::objects::JShortArray<'j>, 1, "java/lang/Short");
+auto_into_java_object!(jni::objects::JByteArray<'j>, 1, "java/lang/Byte");
+auto_into_java_object!(jni::objects::JCharArray<'j>, 1, "java/lang/Char");
+auto_into_java_object!(jni::objects::JFloatArray<'j>, 1, "java/lang/Float");
+auto_into_java_object!(jni::objects::JDoubleArray<'j>, 1, "java/lang/Double");
+auto_into_java_object!(jni::objects::JBooleanArray<'j>, 1, "java/lang/Boolean");
 
 impl<'j> IntoJavaObject<'j> for &str {
 	const CLASS: &'static str = "java/lang/String";
@@ -187,6 +184,7 @@ auto_into_java_object_primitive_option!(f64, "java/lang/Double", "D");
 auto_into_java_object_primitive_option!(bool, "java/lang/Boolean", "Z");
 
 impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<T> {
+	const ARRAY_DEPTH: usize = 1;
 	const CLASS: &'static str = T::CLASS;
 	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
 		let arr: JObjectArray<'j, JObject<'j>> = JObjectArray::<JObject<'j>>::new(env, self.len(), JObject::null())?;
@@ -201,6 +199,7 @@ impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<T> {
 macro_rules! auto_into_java_object_primitive_array {
 	($t:ty, $fn_new:ident, $clazz:literal) => {
 		impl<'j> IntoJavaObject<'j> for Vec<$t> {
+			const ARRAY_DEPTH: usize = 1;
 			const CLASS: &'static str = $clazz;
 			fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
 				let array = env.$fn_new(self.len())?;
@@ -211,16 +210,17 @@ macro_rules! auto_into_java_object_primitive_array {
 	};
 }
 
-auto_into_java_object_primitive_array!(i8, new_byte_array, "java/lang/Byte[]");
-auto_into_java_object_primitive_array!(i16, new_short_array, "java/lang/Short[]");
-auto_into_java_object_primitive_array!(i32, new_int_array, "java/lang/Integer[]");
-auto_into_java_object_primitive_array!(i64, new_long_array, "java/lang/Long[]");
-auto_into_java_object_primitive_array!(f32, new_float_array, "java/lang/Float[]");
-auto_into_java_object_primitive_array!(f64, new_double_array, "java/lang/Double[]");
-auto_into_java_object_primitive_array!(bool, new_boolean_array, "java/lang/Boolean[]");
+auto_into_java_object_primitive_array!(i8, new_byte_array, "java/lang/Byte");
+auto_into_java_object_primitive_array!(i16, new_short_array, "java/lang/Short");
+auto_into_java_object_primitive_array!(i32, new_int_array, "java/lang/Integer");
+auto_into_java_object_primitive_array!(i64, new_long_array, "java/lang/Long");
+auto_into_java_object_primitive_array!(f32, new_float_array, "java/lang/Float");
+auto_into_java_object_primitive_array!(f64, new_double_array, "java/lang/Double");
+auto_into_java_object_primitive_array!(bool, new_boolean_array, "java/lang/Boolean");
 
 impl<'j> IntoJavaObject<'j> for Vec<u8> {
-	const CLASS: &'static str = "java/lang/Byte[]";
+	const ARRAY_DEPTH: usize = 1;
+	const CLASS: &'static str = "java/lang/Byte";
 	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
 		let array = env.new_byte_array(self.len())?;
 		let transmuted = self.into_iter().map(|x| x as i8).collect::<Vec<i8>>();
@@ -230,8 +230,8 @@ impl<'j> IntoJavaObject<'j> for Vec<u8> {
 }
 
 impl<'j> IntoJavaObject<'j> for Vec<char> {
-	const CLASS: &'static str = "java/lang/Character[]";
-
+	const ARRAY_DEPTH: usize = 1;
+	const CLASS: &'static str = "java/lang/Character";
 	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
 		let array = env.new_char_array(self.len())?;
 		let mut new_self : Vec<u16> = Vec::new();
