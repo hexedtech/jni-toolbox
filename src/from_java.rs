@@ -133,19 +133,6 @@ auto_from_java!(f32, jni::sys::jfloat, "F", f, "floatValue");
 auto_from_java!(f64, jni::sys::jdouble, "D", d, "doubleValue");
 auto_from_java!(bool, jni::sys::jboolean, "Z", z, "booleanValue");
 
-impl<'j> FromJava<'j> for u8 {
-	type From = jni::sys::jbyte;
-
-	#[inline]
-	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
-		Ok(value as u8)
-	}
-
-	fn from_jvalue(_: &mut jni::Env, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-		Ok(value.b()? as u8)
-	}
-}
-
 impl<'j, T: TypeArray> FromJava<'j> for JPrimitiveArray<'j, T> {
 	type From = JPrimitiveArray<'j, T>;
 
@@ -204,22 +191,6 @@ impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
 
 	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
 		let jarr: JObjectArray<'j, JObject<'j>> = env.cast_local::<JObjectArray>(value.l()?)?;
-		Self::from_java(env, jarr)
-	}
-}
-
-impl<'j> FromJava<'j> for Vec<u8> {
-	type From = JPrimitiveArray<'j, i8>;
-
-	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-		let len = value.len(env)?;
-		let mut out = vec![<i8>::default(); len];
-		value.get_region(env, 0, &mut out)?;
-		Ok(out.into_iter().map(|x| x as u8).collect())
-	}
-
-	fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-		let jarr: JPrimitiveArray<'j, i8> = env.cast_local::<JPrimitiveArray<i8>>(value.l()?)?;
 		Self::from_java(env, jarr)
 	}
 }

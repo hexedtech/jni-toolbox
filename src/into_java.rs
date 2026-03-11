@@ -196,16 +196,6 @@ impl<'j, T: IntoJavaObject<'j>> IntoJavaObject<'j> for Vec<T> {
 		Ok(JObject::from(arr))
 	}
 }
-impl<'j> IntoJavaObject<'j> for Vec<u8> {
-	const ARRAY_DEPTH: usize = 1;
-	const CLASS: &'static str = "java/lang/Byte";
-	fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
-		let array = env.new_byte_array(self.len())?;
-		let transmuted = self.into_iter().map(|x| x as i8).collect::<Vec<i8>>();
-		array.set_region(env, 0, transmuted.as_slice())?;
-		Ok(array.into())
-	}
-}
 
 impl<'j> IntoJavaObject<'j> for Vec<char> {
 	const ARRAY_DEPTH: usize = 1;

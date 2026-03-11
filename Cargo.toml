@@ -21,4 +21,5 @@ thiserror = "2.0"
 
 [features]
 default = []
+unsigned = []
 uuid = ["dep:uuid"]
