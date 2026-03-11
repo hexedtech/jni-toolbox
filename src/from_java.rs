@@ -107,7 +107,7 @@ macro_rules! auto_from_java {
 			}
 
 			fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-				let jarr: JPrimitiveArray<'j, $t> = env.cast_local::<JPrimitiveArray<$t>>(value.l()?)?;
+				let jarr = env.cast_local::<JPrimitiveArray<'j, $t>>(value.l()?)?;
 				Self::from_java(env, jarr)
 			}
 		}
@@ -120,6 +120,23 @@ macro_rules! auto_from_java {
 				let sig = RuntimeMethodSignature::from_str(concat!("()", $sig))?;
 				let jval = env.call_method(&obj, jni::jni_str!($method), sig.method_signature(), &[])?;
 				Ok(Some(jval.$ext()?))
+			}
+		}
+
+		impl<'j> FromJava<'j> for Option<Vec<$t>> {
+			type From = JPrimitiveArray<'j, $t>;
+
+			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+				if value.is_null() {
+					return Ok(None)
+				}
+
+				<Vec<$t>>::from_java(env, value).map(|res| Some(res))
+			}
+
+			fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+				let jarr = env.cast_local::<JPrimitiveArray<'j, $t>>(value.l()?)?;
+				Self::from_java(env, jarr)
 			}
 		}
 	};

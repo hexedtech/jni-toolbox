@@ -51,6 +51,23 @@ macro_rules! translate {
 			}
 		}
 
+		impl<'j> JavaTranslatable<'j> for Option<Vec<$from>> {
+			type To = Option<<Vec<$from> as JavaTranslatable<'j>>::To>;
+			fn translate_to(self) -> Self::To {
+				match self {
+					Some(val) => Some(val.translate_to()),
+					None => None,
+				}
+			}
+
+			fn translate_back(val: Self::To) -> Result<Self, jni::errors::Error> {
+				match val {
+					Some(val) => Ok(Some(<Vec<$from> as JavaTranslatable<'j>>::translate_back(val)?)),
+					None => Ok(None),
+				}
+			}
+		}
+
 		impl<'j> IntoJava<'j> for $from {
 			type Ret = <<Self as JavaTranslatable<'j>>::To as IntoJava<'j>>::Ret;
 
@@ -74,11 +91,35 @@ macro_rules! translate {
 			}
 		}
 
-		impl<'j> IntoJavaObject<'j> for Vec<$from> {
-			const CLASS: &'static str = <Self as JavaTranslatable>::To::CLASS;
-			const ARRAY_DEPTH: usize = <Self as JavaTranslatable>::To::ARRAY_DEPTH;
-			fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
-				self.translate_to().into_java_object(env)
+		impl<'j> IntoJava<'j> for Vec<$from> {
+			type Ret = <<Self as JavaTranslatable<'j>>::To as IntoJava<'j>>::Ret;
+
+			fn signature() -> (String, jni::signature::JavaType) {
+				<Self as JavaTranslatable<'j>>::To::signature()
+			}
+
+			fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
+				self.translate_to().into_java(env)
+			}
+
+			fn into_jvalue(self, env: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+				self.translate_to().into_jvalue(env)
+			}
+		}
+
+		impl<'j> IntoJava<'j> for Option<Vec<$from>> {
+			type Ret = <<Self as JavaTranslatable<'j>>::To as IntoJava<'j>>::Ret;
+
+			fn signature() -> (String, jni::signature::JavaType) {
+				<Self as JavaTranslatable<'j>>::To::signature()
+			}
+
+			fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
+				self.translate_to().into_java(env)
+			}
+
+			fn into_jvalue(self, env: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+				self.translate_to().into_jvalue(env)
 			}
 		}
 
@@ -104,6 +145,20 @@ macro_rules! translate {
 		}
 
 		impl<'j> FromJava<'j> for Vec<$from> {
+			type From = <<Self as JavaTranslatable<'j>>::To as FromJava<'j>>::From;
+
+			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+				let val = <Self as JavaTranslatable<'j>>::To::from_java(env, value)?;
+				Self::translate_back(val)
+			}
+
+			fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+				let val = <Self as JavaTranslatable<'j>>::To::from_jvalue(env, value)?;
+				Self::translate_back(val)
+			}
+		}
+
+		impl<'j> FromJava<'j> for Option<Vec<$from>> {
 			type From = <<Self as JavaTranslatable<'j>>::To as FromJava<'j>>::From;
 
 			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {

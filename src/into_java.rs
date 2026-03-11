@@ -64,7 +64,7 @@ impl<'j> IntoJava<'j> for () {
 }
 
 macro_rules! auto_into_java {
-	($t: ty, $sig:literal, $clazz:literal, $j:ty, $jt:expr, $jvalue:expr, $fn_array:ident) => {
+	($t: ty, $sig:literal, $clazz:literal, $j:ty, $j_arr:ty, $jt:expr, $jvalue:expr, $fn_array:ident) => {
 		impl<'j> IntoJava<'j> for $t {
 			type Ret = $j;
 
@@ -104,28 +104,60 @@ macro_rules! auto_into_java {
 			}
 		}
 
-		impl<'j> IntoJavaObject<'j> for Vec<$t> {
-			const ARRAY_DEPTH: usize = 1;
-			const CLASS: &'static str = $clazz;
-			fn into_java_object(self, env: &mut jni::Env<'j>) -> Result<JObject<'j>, jni::errors::Error> {
-				let array = env.$fn_array(self.len())?;
-				array.set_region(env, 0, self.as_slice())?;
-				Ok(array.into())
+		impl<'j> IntoJava<'j> for Vec<$t> {
+			type Ret = $j_arr;
+
+			fn signature() -> (String, JavaType) {
+				(concat!("[", $sig).to_string(), JavaType::Array)
+			}
+
+			fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
+				let arr = env.$fn_array(self.len())?;
+				arr.set_region(env, 0, self.as_slice())?;
+				Ok(arr.as_raw().into())
+			}
+
+			fn into_jvalue(self, env: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+				let arr = env.$fn_array(self.len())?;
+				arr.set_region(env, 0, self.as_slice())?;
+				Ok(jni::JValueOwned::Object(arr.into()))
+			}
+		}
+
+		impl<'j> IntoJava<'j> for Option<Vec<$t>> {
+			type Ret = jni::sys::jbyteArray;
+
+			fn signature() -> (String, JavaType) {
+				(concat!("[", $sig).to_string(), JavaType::Array)
+			}
+
+			fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
+				match self {
+					Some(val) => Ok(val.into_java(env)?),
+					None => Ok(jni::objects::JPrimitiveArray::<$t>::null().as_raw().into()),
+				}
+			}
+
+			fn into_jvalue(self, env: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+				match self {
+					Some(val) => Ok(val.into_jvalue(env)?),
+					None => Ok(jni::JValueOwned::Object(jni::objects::JPrimitiveArray::<$t>::null().into())),
+				}
 			}
 		}
 	};
-	($t: ty, $sig:literal, $clazz:literal, $j:ty, $variant:ident, $fn_array:ident) => {
-		auto_into_java!($t, $sig, $clazz, $j, JavaType::Primitive(Primitive::$variant), jni::JValueOwned::$variant, $fn_array);
+	($t: ty, $sig:literal, $clazz:literal, $j:ty, $j_arr:ty, $variant:ident, $fn_array:ident) => {
+		auto_into_java!($t, $sig, $clazz, $j, $j_arr, JavaType::Primitive(Primitive::$variant), jni::JValueOwned::$variant, $fn_array);
 	};
 }
 
-auto_into_java!(i8, "B", "java/lang/Byte", jni::sys::jbyte, Byte, new_byte_array);
-auto_into_java!(i16, "S", "java/lang/Short", jni::sys::jshort, Short, new_short_array);
-auto_into_java!(i32, "I", "java/lang/Integer", jni::sys::jint, Int, new_int_array);
-auto_into_java!(i64, "L", "java/lang/Long", jni::sys::jlong, Long, new_long_array);
-auto_into_java!(f32, "F", "java/lang/Float", jni::sys::jfloat, Float, new_float_array);
-auto_into_java!(f64, "D", "java/lang/Double", jni::sys::jdouble, Double, new_double_array);
-auto_into_java!(bool, "Z", "java/lang/Boolean", jni::sys::jboolean, JavaType::Primitive(Primitive::Boolean), jni::JValueOwned::Bool, new_boolean_array);
+auto_into_java!(i8, "B", "java/lang/Byte", jni::sys::jbyte, jni::sys::jbyteArray, Byte, new_byte_array);
+auto_into_java!(i16, "S", "java/lang/Short", jni::sys::jshort, jni::sys::jshortArray, Short, new_short_array);
+auto_into_java!(i32, "I", "java/lang/Integer", jni::sys::jint, jni::sys::jintArray, Int, new_int_array);
+auto_into_java!(i64, "L", "java/lang/Long", jni::sys::jlong, jni::sys::jlongArray, Long, new_long_array);
+auto_into_java!(f32, "F", "java/lang/Float", jni::sys::jfloat, jni::sys::jbyteArray, Float, new_float_array);
+auto_into_java!(f64, "D", "java/lang/Double", jni::sys::jdouble, jni::sys::jdoubleArray, Double, new_double_array);
+auto_into_java!(bool, "Z", "java/lang/Boolean", jni::sys::jboolean, jni::sys::jbooleanArray, JavaType::Primitive(Primitive::Boolean), jni::JValueOwned::Bool, new_boolean_array);
 
 impl<'j> IntoJavaObject<'j> for JObject<'j> {
 	const CLASS: &'static str = "java/lang/Object";
