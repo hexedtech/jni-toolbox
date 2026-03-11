@@ -49,6 +49,7 @@ fn throw_error() -> Result<(), CustomError> {
 	Err(CustomError(42))
 }
 
+#[allow(dead_code)]
 #[jclass(class = "mp/some/class")]
 struct CustomClass {
 	field: String,
