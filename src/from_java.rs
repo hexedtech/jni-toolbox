@@ -77,6 +77,22 @@ macro_rules! auto_from_java {
 				value.$ext()
 			}
 		}
+
+		impl<'j> FromJava<'j> for Vec<$t> {
+			type From = JPrimitiveArray<'j, $t>;
+	
+			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
+				let len = value.len(env)?;
+				let mut out = vec![<$t>::default(); len];
+				value.get_region(env, 0, &mut out)?;
+				Ok(out)
+			}
+
+			fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
+				let jarr: JPrimitiveArray<'j, $t> = env.cast_local::<JPrimitiveArray<$t>>(value.l()?)?;
+				Self::from_java(env, jarr)
+			}
+		}
 	};
 }
 
@@ -177,34 +193,6 @@ impl<'j, T: FromJava<'j, From = JObject<'j>>> FromJava<'j> for Vec<T> {
 		Self::from_java(env, jarr)
 	}
 }
-
-macro_rules! auto_from_java_primitive_array {
-	($primitive:ty) => {
-		impl<'j> FromJava<'j> for Vec<$primitive> {
-			type From = JPrimitiveArray<'j, $primitive>;
-		
-			fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
-				let len = value.len(env)?;
-				let mut out = vec![<$primitive>::default(); len];
-				value.get_region(env, 0, &mut out)?;
-				Ok(out)
-			}
-
-			fn from_jvalue(env: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-				let jarr: JPrimitiveArray<'j, $primitive> = env.cast_local::<JPrimitiveArray<$primitive>>(value.l()?)?;
-				Self::from_java(env, jarr)
-			}
-		}
-	};
-}
-
-auto_from_java_primitive_array!(i8);
-auto_from_java_primitive_array!(i16);
-auto_from_java_primitive_array!(i32);
-auto_from_java_primitive_array!(i64);
-auto_from_java_primitive_array!(f32);
-auto_from_java_primitive_array!(f64);
-auto_from_java_primitive_array!(bool);
 
 impl<'j> FromJava<'j> for Vec<u8> {
 	type From = JPrimitiveArray<'j, i8>;
