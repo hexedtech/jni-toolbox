@@ -62,9 +62,20 @@ impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
 	type Ret = jni::sys::jobject;
 
 	fn signature() -> (String, JavaType) {
-		// TODO very cheap hack....
-		let jt = if Self::CLASS.ends_with("[]") { JavaType::Array } else { JavaType::Object };
-		(format!("L{};", Self::CLASS), jt)
+		let mut base_type = Self::CLASS;
+		let mut depth = 0;
+		while let Some(stripped) = base_type.strip_suffix("[]") {
+			depth += 1;
+			base_type = stripped;
+		}
+
+		let jt = if depth > 0 {
+			JavaType::Array
+		} else {
+			JavaType::Object
+		};
+	
+		(format!("{}L{};", "[".repeat(depth), base_type), jt)
 	}
 
 	#[inline]
