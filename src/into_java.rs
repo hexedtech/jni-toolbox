@@ -8,9 +8,9 @@ pub trait IntoJava<'j> {
 	/// The JNI type representing the output.
 	fn signature() -> (String, JavaType);
 	/// Attempts to convert this Rust object into a Java primitive.
-	fn into_java(self, e: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error>;
+	fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error>;
 	/// Attempts to convert this Rust object into a JValue (used in constructors).
-	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error>;
+	fn into_jvalue(self, env: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error>;
 }
 
 /// Specifies how a Rust type should be converted into a Java object.
@@ -41,8 +41,8 @@ impl<'j, X: IntoJavaObject<'j>> IntoJava<'j> for X {
 		Ok(self.into_java_object(env)?.as_raw())
 	}
 
-	fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
-		Ok(jni::JValueOwned::Object(self.into_java_object(e)?))
+	fn into_jvalue(self, env: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+		Ok(jni::JValueOwned::Object(self.into_java_object(env)?))
 	}
 }
 

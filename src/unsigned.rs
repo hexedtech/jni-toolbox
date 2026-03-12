@@ -75,12 +75,12 @@ macro_rules! translate {
 				<Self as JavaTranslatable>::To::signature()
 			}
 
-			fn into_java(self, e: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
-				self.translate_to().into_java(e)
+			fn into_java(self, env: &mut jni::Env<'j>) -> Result<Self::Ret, jni::errors::Error> {
+				self.translate_to().into_java(env)
 			}
 
-			fn into_jvalue(self, e: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
-				self.translate_to().into_jvalue(e)
+			fn into_jvalue(self, env: &mut jni::Env<'j>) -> Result<jni::JValueOwned<'j>, jni::errors::Error> {
+				self.translate_to().into_jvalue(env)
 			}
 		}
 
