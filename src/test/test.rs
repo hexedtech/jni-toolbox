@@ -38,9 +38,9 @@ fn raw<'local>(env: &mut jni::Env<'local>) -> Result<jni::objects::JString<'loca
 #[error("some test error")]
 struct CustomError(i32);
 
-impl jni_toolbox::IntoException  for CustomError {
+impl jni_toolbox::IntoException for CustomError {
 	fn jclass(&self) -> &'static str {
-		"java/lang/Exception"
+		"toolbox/CustomException"
 	}
 }
 

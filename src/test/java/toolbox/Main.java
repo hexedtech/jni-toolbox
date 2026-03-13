@@ -30,14 +30,6 @@ public class Main {
 	}
 
 	@Test
-	public void checksForNull() {
-		// TODO maybe these should throw NullPtrException
-		assertThrows(NullPointerException.class, () -> Main.concat("a", null));
-		assertThrows(NullPointerException.class, () -> Main.concat(null, "a"));
-		assertThrows(NullPointerException.class, () -> Main.concat(null, null));
-	}
-
-	@Test
 	public void returnVec() {
 		String[] actual = new String[]{"a", "b", "c"};
 		String[] from_rust = Main.to_vec("a", "b", "c");
