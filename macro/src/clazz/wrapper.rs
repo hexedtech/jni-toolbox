@@ -98,24 +98,16 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 			}
 		}
 
-		impl<'local> jni_toolbox::FromJava<'local> for #struct_type {
-			type From = jni::objects::JObject<'local>;
-			fn from_java(
+		impl<'local> jni_toolbox::FromJavaObject<'local> for #struct_type {
+			fn from_java_object(
+				object: jni::objects::JObject<'local>,
 				env: &mut jni::Env<'local>,
-				object: Self::From,
 			) -> Result<Self, jni::errors::Error> {
-				use jni_toolbox::{IntoJava, FromJava};
+				use jni_toolbox::{IntoJava, FromJava, FromJavaObject};
 
 				#getter_fields
 
 				#builder
-			}
-
-			fn from_jvalue(
-				env: &mut jni::Env<'local>,
-				value: jni::JValueOwned<'local>,
-			) -> Result<Self, jni::errors::Error> {
-				Self::from_java(env, value.l()?)
 			}
 		}
 	})

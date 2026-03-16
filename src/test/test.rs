@@ -1,4 +1,4 @@
-use jni_toolbox::{jni, jclass};
+use jni_toolbox::{jclass, jni};
 
 #[jni(package = "toolbox", class = "Main")]
 fn sum(a: i32, b: i32) -> i32 {

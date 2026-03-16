@@ -6,7 +6,7 @@ pub mod error;
 pub mod unsigned;
 
 pub use into_java::{IntoJavaObject, IntoJava};
-pub use from_java::{FromJava, from_java_static, from_jvalue_static};
+pub use from_java::{FromJavaObject, FromJava, from_java_static, from_jvalue_static};
 pub use error::{
 	IntoException,
 	JniToolboxError as Error,
