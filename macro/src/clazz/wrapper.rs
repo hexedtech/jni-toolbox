@@ -17,7 +17,7 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 
 	for f in s.fields.iter() {
 		if let Some(name) = f.ident.clone() {
-			let name_str = stringify!(name);
+			let name_str = name.to_string();
 			let ty = f.ty.clone();
 
 			constructor_str.append_all(quote::quote! (
@@ -56,7 +56,7 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 		Ok(Self { #builder_fields })
 	);
 	let constructor_str_concat = quote::quote! (
-		String::new() + #constructor_str ""
+		String::new() + "(" + #constructor_str ")V"
 	);
 
 	let struct_type = s.ident;
