@@ -24,7 +24,7 @@ impl AttrsOptions {
 							"exception" => what_next = WhatNext::Exception,
 							"ptr" => {}, // accepted for backwards compatibility
 							"inline" => inline = true,
-							_ => return Err(syn::Error::new(Span::call_site(), "unexpected attribute on macro: {attr}")),
+							val => return Err(syn::Error::new(Span::call_site(), format!("unexpected attribute on macro: {val}"))),
 						}
 					}
 				},

@@ -2,12 +2,14 @@ use proc_macro2::{Span, TokenStream, TokenTree};
 
 pub(crate) struct AttrsOptions {
 	pub(crate) clazz: String,
+	pub(crate) package: String,
 }
 
 impl AttrsOptions {
-	pub(crate) fn parse_attr(attrs: TokenStream) -> Result<Self, syn::Error> {
+	pub(crate) fn parse_attr(attrs: TokenStream, attr_struct: &syn::ItemStruct) -> Result<Self, syn::Error> {
 		let mut what_next = WhatNext::Nothing;
 
+		let mut package = None;
 		let mut clazz = None;
 	
 		for attr in attrs {
@@ -16,7 +18,8 @@ impl AttrsOptions {
 					if let TokenTree::Ident(ref i) = attr {
 						match i.to_string().as_ref() {
 							"class" => what_next = WhatNext::Class,
-							_ => return Err(syn::Error::new(Span::call_site(), "unexpected attribute on macro: {attr}")),
+							"package" => what_next = WhatNext::Package,
+							val => return Err(syn::Error::new(Span::call_site(), format!("unexpected attribute on macro: {val}"))),
 						}
 					}
 				},
@@ -26,16 +29,25 @@ impl AttrsOptions {
 						what_next = WhatNext::Nothing;
 					}
 				},
+				WhatNext::Package => {
+					if let TokenTree::Literal(i) = attr {
+						package = Some(i.to_string().replace('"', "").replace(".", "/"));
+						what_next = WhatNext::Nothing;
+					}
+				},
 			}
 		}
 
-		let Some(clazz) = clazz else { return Err(syn::Error::new(Span::call_site(), "missing required attribute 'class'")) };
+		let Some(package) = package else {
+			return Err(syn::Error::new(Span::call_site(), "missing required attribute 'package'"))
+		};
 
-		Ok(Self { clazz })
+		Ok(Self { clazz: clazz.unwrap_or(attr_struct.ident.to_string()), package })
 	}
 }
 
 enum WhatNext {
 	Nothing,
 	Class,
+	Package,
 }

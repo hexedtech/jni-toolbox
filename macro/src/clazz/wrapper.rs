@@ -6,7 +6,7 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 		return Err(syn::Error::new(Span::call_site(), "#[jclass] is only supported on structs"));
 	};
 
-	let attrs = super::attrs::AttrsOptions::parse_attr(attrs)?;
+	let attrs = super::attrs::AttrsOptions::parse_attr(attrs, &s)?;
 
 	let mut builder_fields = TokenStream::new();
 	let mut getter_fields = TokenStream::new();
@@ -60,7 +60,7 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 	);
 
 	let struct_type = s.ident;
-	let clazz = attrs.clazz;
+	let clazz = format!("{}/{}", attrs.package, attrs.clazz);
 
 	Ok(quote::quote! {
 		#original_struct

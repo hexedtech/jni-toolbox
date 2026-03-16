@@ -50,7 +50,7 @@ fn throw_error() -> Result<(), CustomError> {
 }
 
 #[allow(dead_code)]
-#[jclass(class = "mp/some/class")]
+#[jclass(package = "toolbox")] // class name inferred from the struct
 struct CustomClass {
 	field: String,
 	flag: bool,
