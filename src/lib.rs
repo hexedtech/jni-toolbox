@@ -13,4 +13,4 @@ pub use error::{
 	JniToolboxErrorPolicy as ErrorPolicy
 };
 
-pub use jni_toolbox_macro::{jni, jclass};
+pub use jni_toolbox_macro::{jni, jclass, jenum};

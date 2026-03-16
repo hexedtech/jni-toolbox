@@ -1,4 +1,4 @@
-use jni_toolbox::{jclass, jni};
+use jni_toolbox::{jclass, jni, jenum};
 
 #[jni(package = "toolbox", class = "Main")]
 fn sum(a: i32, b: i32) -> i32 {
@@ -49,9 +49,34 @@ fn throw_error() -> Result<(), CustomError> {
 	Err(CustomError(42))
 }
 
-#[allow(dead_code)]
 #[jclass(package = "toolbox")] // class name inferred from the struct
 struct CustomClass {
 	field: String,
 	flag: bool,
+}
+
+#[jni(package = "toolbox", class = "Main")]
+fn create_jclass(field: String, flag: bool) -> CustomClass {
+	CustomClass { field, flag }
+}
+
+#[jni(package = "toolbox", class = "Main")]
+fn receive_jclass(input: CustomClass) -> String {
+	input.field.clone()
+}
+
+#[jenum(package = "toolbox")]
+enum SomeEnum {
+	FirstVariant = 2,
+	SecondVariant = 3
+}
+
+#[jni(package = "toolbox", class = "Main")]
+fn create_enum() -> SomeEnum {
+	SomeEnum::FirstVariant
+}
+
+#[jni(package = "toolbox", class = "Main")]
+fn enum_rust_value(input: SomeEnum) -> i32 {
+	input as i32
 }
