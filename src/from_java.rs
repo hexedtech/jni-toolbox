@@ -29,7 +29,7 @@ pub trait FromJavaObject<'j> : Sized {
 }
 
 impl<'j, X: FromJavaObject<'j>> FromJava<'j> for X {
-	type From = JObject<'j>; // TODO or jni::sys::jobject??
+	type From = JObject<'j>;
 
 	#[inline]
 	fn from_java(env: &mut jni::Env<'j>, value: Self::From) -> Result<Self, jni::errors::Error> {
@@ -168,11 +168,12 @@ impl<'j> FromJava<'j> for char {
 
 	#[inline]
 	fn from_java(_: &mut jni::Env, value: Self::From) -> Result<Self, jni::errors::Error> {
-		char::from_u32(value.into()).ok_or_else(|| jni::errors::Error::WrongJValueType("char", "invalid u16"))
+		jni::char_from_java(value).map_err(|e| jni::errors::Error::InvalidUtf16 { source: e })
 	}
 
 	fn from_jvalue(_: &mut jni::Env<'j>, value: jni::JValueOwned<'j>) -> Result<Self, jni::errors::Error> {
-		value.c_char()
+		jni::char_from_java(value.c()?)
+			.map_err(|e| jni::errors::Error::InvalidUtf16 { source: e })
 	}
 }
 
