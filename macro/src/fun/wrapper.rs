@@ -1,14 +1,28 @@
 use proc_macro2::{Span, TokenStream};
 use syn::Item;
 
-use crate::fun::{args::ArgumentOptions, attrs::AttrsOptions, ret::ReturnOptions};
+use crate::{attrs::AttrsOptions, fun::{args::ArgumentOptions, ret::ReturnOptions}};
 
 pub(crate) fn generate_jni_wrapper(attrs: TokenStream, original_fn: TokenStream) -> Result<TokenStream, syn::Error> {
 	let Item::Fn(fn_item) = syn::parse2(original_fn.clone())? else {
 		return Err(syn::Error::new(Span::call_site(), "#[jni] is only supported on functions"));
 	};
 
+	let name = fn_item.sig.ident.to_string();
+	let name_jni = name.replace("_", "_1");
 	let attrs = AttrsOptions::parse_attr(attrs)?;
+	let (fn_name, inline) = {
+		let Some(class) = attrs.class else {
+			return Err(syn::Error::new(Span::call_site(), "missing required attribute 'class'"))
+		};
+
+		let Some(package) = attrs.package else {
+			return Err(syn::Error::new(Span::call_site(), "missing required attribute 'package'"))
+		};
+
+		(format!("Java_{package}_{class}_{name_jni}"), attrs.inline.unwrap_or(false))
+	};
+
 	let ret = ReturnOptions::parse_signature(&fn_item.sig.output)?;
 
 	// TODO a bit ugly passing the return expr down... we should probably manage returns here
@@ -16,10 +30,8 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, original_fn: TokenStream)
 
 	let return_type = ret.tokens();
 
-	let name = fn_item.sig.ident.to_string();
-	let name_jni = name.replace("_", "_1");
 	let fn_name_inner = syn::Ident::new(&name, Span::call_site());
-	let fn_name = syn::Ident::new(&format!("Java_{}_{}_{name_jni}", attrs.package, attrs.class), Span::call_site());
+	let fn_name = syn::Ident::new(&fn_name, Span::call_site());
 
 	let incoming = args.incoming;
 	// V----------------------------------V
@@ -33,7 +45,7 @@ pub(crate) fn generate_jni_wrapper(attrs: TokenStream, original_fn: TokenStream)
 	let env_iden = args.env;
 	let forwarding = args.forwarding;
 
-	let inline_macro = if attrs.inline {
+	let inline_macro = if inline {
 		quote::quote!(#[inline])
 	} else {
 		quote::quote!()

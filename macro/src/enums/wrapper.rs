@@ -6,7 +6,19 @@ pub(crate) fn generate_enum_conversions(attrs: TokenStream, original_enum: Token
 		return Err(syn::Error::new(Span::call_site(), "#[jenum] is only supported on c-like enums"));
 	};
 
-	let attrs = super::attrs::AttrsOptions::parse_attr(attrs, &e)?;
+	let attrs = crate::attrs::AttrsOptions::parse_attr(attrs)?;
+	let clazz = {
+		if attrs.inline.is_some() {
+			return Err(syn::Error::new(Span::call_site(), "#[jenum] does not support attribute 'inline'"))
+		}
+
+		let class = attrs.class.unwrap_or(e.ident.to_string());
+		let Some(package) = attrs.package else {
+			return Err(syn::Error::new(Span::call_site(), "missing required attribute 'package'"))
+		};
+
+		format!("{package}/{class}")
+	};
 
 	let mut get_java_variant = TokenStream::new();
 	let mut get_rust_variant = TokenStream::new();
@@ -30,7 +42,6 @@ pub(crate) fn generate_enum_conversions(attrs: TokenStream, original_enum: Token
 	}
 
 	let enum_ident = e.ident;
-	let clazz = format!("{}/{}", attrs.package, attrs.clazz);
 
 	Ok(quote::quote! {
 		#original_enum

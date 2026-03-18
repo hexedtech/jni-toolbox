@@ -6,7 +6,19 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 		return Err(syn::Error::new(Span::call_site(), "#[jclass] is only supported on structs"));
 	};
 
-	let attrs = super::attrs::AttrsOptions::parse_attr(attrs, &s)?;
+	let attrs = crate::attrs::AttrsOptions::parse_attr(attrs)?;
+	let clazz = {
+		if attrs.inline.is_some() {
+			return Err(syn::Error::new(Span::call_site(), "#[jclass] does not support attribute 'inline'"))
+		}
+
+		let class = attrs.class.unwrap_or(s.ident.to_string());
+		let Some(package) = attrs.package else {
+			return Err(syn::Error::new(Span::call_site(), "missing required attribute 'package'"))
+		};
+
+		format!("{package}/{class}")
+	};
 
 	let mut builder_fields = TokenStream::new();
 	let mut getter_fields = TokenStream::new();
@@ -60,7 +72,6 @@ pub(crate) fn generate_jobject_conversions(attrs: TokenStream, original_struct: 
 	);
 
 	let struct_type = s.ident;
-	let clazz = format!("{}/{}", attrs.package, attrs.clazz);
 
 	Ok(quote::quote! {
 		#original_struct

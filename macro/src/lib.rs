@@ -2,6 +2,7 @@ mod ext;
 mod fun;
 mod clazz;
 mod enums;
+mod attrs;
 
 /// Wrap this function in in a JNI exported fn.
 #[proc_macro_attribute]
