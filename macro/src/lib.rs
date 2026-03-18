@@ -24,7 +24,7 @@ pub fn jclass(
 	attrs: proc_macro::TokenStream,
 	input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-	clazz::wrapper::generate_jobject_conversions(
+	clazz::generate_jobject_conversions(
 		syn::parse_macro_input!(attrs),
 		syn::parse_macro_input!(input),
 	)
@@ -38,7 +38,7 @@ pub fn jenum(
 	attrs: proc_macro::TokenStream,
 	input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-	enums::wrapper::generate_enum_conversions(
+	enums::generate_enum_conversions(
 		syn::parse_macro_input!(attrs),
 		syn::parse_macro_input!(input),
 	)
